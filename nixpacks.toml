@@ -1,15 +1,24 @@
+# Nixpacks configuration for Laravel
+# Railway handles PHP + Nginx automatically if we don't override too much.
+
+[variables]
+    NIXPACKS_PHP_ROOT_DIR = "public"
+    APP_ENV = "production"
+
 [phases.setup]
-nixPkgs = ["php82", "php82Packages.composer", "nodejs_20", "apache"]
+    nixPkgs = ["php82", "php82Packages.composer", "nodejs_20"]
 
 [phases.build]
-cmds = [
-    "composer install --no-dev --optimize-autoloader",
-    "npm install",
-    "npm run build",
-    "php artisan config:cache",
-    "php artisan route:cache",
-    "php artisan view:cache"
-]
+    cmds = [
+        "composer install --no-dev --optimize-autoloader",
+        "npm install",
+        "npm run build",
+        "php artisan config:cache",
+        "php artisan route:cache",
+        "php artisan view:cache"
+    ]
 
 [start]
-cmd = "php artisan migrate --force && apache2-foreground"
+    # We use a custom start command to ensure migrations run before the web server starts.
+    # Railway's PHP provider uses 'start-php-server' by default which handles Nginx+FPM.
+    cmd = "php artisan migrate --force && start-php-server"
