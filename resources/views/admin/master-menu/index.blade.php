@@ -1,0 +1,256 @@
+@extends('layouts.admin')
+
+@php
+  $title = 'Master Menu';
+  $header = 'Master Menu';
+  $subheader = 'Kontrol akses menu LKE dan isi kolom Informasi untuk tiap role.';
+@endphp
+
+@section('content')
+
+<div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+  <div>
+    <div class="font-semibold text-lg md:text-xl">Master Menu per Role</div>
+    <div class="text-(--muted) text-xs md:text-sm mt-1">Atur akses menu Isi LKE dan konten kolom Informasi di dashboard masing-masing role.</div>
+  </div>
+</div>
+
+{{-- Flash messages --}}
+@if(session('success'))
+  <div class="bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 rounded-2xl px-5 py-3 mb-6 text-xs md:text-sm flex items-center gap-3">
+    <i class="bi bi-check-circle-fill shrink-0"></i>
+    <span>{{ session('success') }}</span>
+  </div>
+@endif
+@if(session('failed'))
+  <div class="bg-red-500/10 border border-red-500/30 text-red-500 rounded-2xl px-5 py-3 mb-6 text-xs md:text-sm flex items-center gap-3">
+    <i class="bi bi-exclamation-circle-fill shrink-0"></i>
+    <span>{{ session('failed') }}</span>
+  </div>
+@endif
+
+{{-- ===== SECTION 1: MENU LKE TOGGLE ===== --}}
+<div class="font-semibold text-sm md:text-base text-(--text) mb-3 flex items-center gap-2">
+  <i class="bi bi-toggles text-(--brand)"></i> Kontrol Akses Menu Isi LKE
+</div>
+
+<div class="bg-(--panel) border border-(--border-strong) rounded-2xl p-6 mb-4">
+  <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+    <div>
+      <div class="text-[10px] md:text-xs text-(--muted) mb-1">Role (hanya OPD yang bisa dikontrol)</div>
+      <div class="font-semibold uppercase text-base md:text-lg text-(--text)">{{ $role }}</div>
+    </div>
+    <div>
+      <div class="text-[10px] md:text-xs text-(--muted) mb-1">Total User</div>
+      <div class="font-semibold text-base md:text-lg text-(--text)">{{ $totalUsers }}</div>
+    </div>
+    <div>
+      <div class="text-[10px] md:text-xs text-(--muted) mb-1">User Nonaktif</div>
+      <div class="font-semibold text-base md:text-lg text-(--text)">{{ $disabledUsers }}</div>
+    </div>
+  </div>
+</div>
+
+@if($totalUsers === 0 && $role === 'opd')
+  <div class="bg-yellow-500/10 border border-yellow-500/50 text-yellow-500 text-xs md:text-sm rounded-2xl p-4 mb-6">
+    Belum ada user pada role {{ strtoupper($role) }} yang bisa diatur.
+  </div>
+@elseif($role === 'opd')
+  <div class="bg-(--panel) border border-(--border-strong) rounded-2xl p-6 mb-6">
+    <div class="mb-6">
+      <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs md:text-sm font-medium border {{ $menuIsiLkeAvailable ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500' : 'bg-red-500/10 border-red-500/30 text-red-500' }}">
+        <i class="bi {{ $menuIsiLkeAvailable ? 'bi-check-circle' : 'bi-x-circle' }}"></i>
+        Menu Isi LKE untuk role OPD: {{ $menuIsiLkeAvailable ? 'Tersedia' : 'Tidak Ada' }}
+      </span>
+    </div>
+
+    <form method="POST" action="{{ route('master-menu.update') }}" class="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
+      @csrf
+      @method('PUT')
+      <input type="hidden" name="role" value="opd">
+
+      <div class="md:col-span-6 lg:col-span-4">
+        <label class="block text-(--muted) text-xs md:text-sm mb-2">Status Menu Isi LKE</label>
+        <select name="menu_isi_lke_available" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 md:px-4 py-2 md:py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all">
+          <option value="1" {{ $menuIsiLkeAvailable ? 'selected' : '' }}>Tersedia</option>
+          <option value="0" {{ !$menuIsiLkeAvailable ? 'selected' : '' }}>Tidak Ada</option>
+        </select>
+      </div>
+
+      <div class="md:col-span-12">
+        <button type="submit" class="px-5 md:px-6 py-2 md:py-2.5 bg-(--brand) text-white rounded-xl hover:opacity-90 flex items-center gap-2 transition-opacity font-medium">
+          <i class="bi bi-save2"></i> Simpan Pengaturan
+        </button>
+      </div>
+    </form>
+  </div>
+@else
+  <div class="bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 rounded-2xl p-4 mb-6 text-xs md:text-sm flex items-start gap-3">
+    <i class="bi bi-info-circle-fill mt-0.5 shrink-0"></i>
+    <div>Kontrol akses menu Isi LKE hanya berlaku untuk role <b>OPD</b>. Gunakan tab di bawah untuk mengedit konten Informasi role lainnya.</div>
+  </div>
+@endif
+
+{{-- ===== SECTION 2: EDIT KOLOM INFORMASI PER ROLE ===== --}}
+<div class="font-semibold text-sm md:text-base text-(--text) mb-3 mt-2 flex items-center gap-2">
+  <i class="bi bi-pencil-square text-(--brand)"></i> Kelola Konten Kolom Informasi
+</div>
+
+<div class="bg-(--panel) border border-(--border-strong) rounded-2xl p-6 mb-6">
+  <div class="text-(--muted) text-xs md:text-sm mb-5">
+    Isi kolom "Informasi" yang ditampilkan di dashboard masing-masing role. Klik tab role lalu edit dan simpan.
+  </div>
+
+  {{-- Tab Navigasi --}}
+  <div class="flex gap-1 mb-6 bg-black/5 rounded-xl p-1 w-fit">
+    @foreach(['admin' => 'Admin', 'opd' => 'OPD', 'bps' => 'BPS'] as $r => $label)
+      <button type="button"
+        onclick="switchInfoTab('{{ $r }}')"
+        id="tab-{{ $r }}"
+        class="px-4 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all
+          {{ $role === $r ? 'bg-(--brand) text-white shadow-sm' : 'text-(--muted) hover:text-(--text)' }}">
+        {{ $label }}
+      </button>
+    @endforeach
+  </div>
+
+  {{-- Panel per role --}}
+  @foreach([
+    'admin' => $informasiAdmin,
+    'opd'   => $informasiOpd,
+    'bps'   => $informasiBps,
+  ] as $r => $inf)
+    <div id="info-panel-{{ $r }}" class="{{ $role === $r ? '' : 'hidden' }}">
+      <form method="POST" action="{{ route('master-menu.updateInformasi') }}">
+        @csrf
+        @method('PUT')
+        <input type="hidden" name="role" value="{{ $r }}">
+
+        <div class="grid grid-cols-1 gap-4">
+          <div>
+            <label class="block text-(--muted) text-xs md:text-sm mb-2 font-semibold">
+              Judul <span class="text-red-500">*</span>
+            </label>
+            <input type="text" name="judul" required maxlength="200"
+              value="{{ $inf->judul }}"
+              class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-4 py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all">
+          </div>
+
+          <div>
+            <label class="block text-(--muted) text-xs md:text-sm mb-2 font-semibold">
+              Isi Informasi <span class="text-red-500">*</span>
+            </label>
+            <textarea name="isi" id="isi-{{ $r }}" required rows="5"
+              oninput="updateWordCount('{{ $r }}')"
+              class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-4 py-3 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all leading-relaxed resize-none"
+              placeholder="Tuliskan teks informasi yang akan tampil di dashboard role {{ strtoupper($r) }}...">{{ $inf->isi }}</textarea>
+            <div class="flex items-center justify-between mt-1">
+              <div id="word-count-{{ $r }}" class="text-[10px] text-(--muted) transition-colors">0 kata</div>
+              <div class="text-[10px] text-(--muted)">Maks. <b>300 kata</b></div>
+            </div>
+          </div>
+
+          <div>
+            <button type="submit"
+              class="px-5 py-2 md:py-2.5 bg-(--brand) text-white rounded-xl hover:opacity-90 flex items-center gap-2 transition-opacity font-medium text-xs md:text-sm">
+              <i class="bi bi-save2"></i> Simpan Informasi {{ strtoupper($r) }}
+            </button>
+          </div>
+        </div>
+      </form>
+
+      {{-- Preview --}}
+      <div class="mt-5 border-t border-(--border-strong) pt-5">
+        <div class="text-[10px] text-(--muted) uppercase tracking-wider font-semibold mb-3">Preview tampilan di dashboard {{ strtoupper($r) }}</div>
+        <div class="bg-(--sidebar-bg) border border-(--border-strong) rounded-xl p-4 text-xs md:text-sm text-(--text) leading-relaxed">
+          {{ $inf->isi }}
+        </div>
+      </div>
+    </div>
+  @endforeach
+</div>
+
+{{-- Info cards --}}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  <div class="bg-(--panel) border border-(--border-strong) rounded-2xl p-6 h-full">
+    <div class="font-semibold text-(--text) mb-3 flex items-center gap-2">
+      <i class="bi bi-lock text-(--brand)"></i> Saat Menu = Tidak Ada
+    </div>
+    <div class="text-(--muted) text-xs md:text-sm leading-relaxed">
+      Semua user pada role terkait tetap melihat menu <b class="text-(--text)">Isi LKE</b>, tetapi saat dibuka halaman akan menampilkan pemberitahuan bahwa menu tidak tersedia.
+    </div>
+  </div>
+
+  <div class="bg-(--panel) border border-(--border-strong) rounded-2xl p-6 h-full">
+    <div class="font-semibold text-(--text) mb-3 flex items-center gap-2">
+      <i class="bi bi-shield-lock text-(--brand)"></i> Enforcement
+    </div>
+    <div class="text-(--muted) text-xs md:text-sm leading-relaxed">
+      Semua aksi mutasi LKE dari OPD (autosave, upload file, finalize) juga ditolak oleh server ketika menu dinonaktifkan.
+    </div>
+  </div>
+</div>
+
+<script>
+  const MAX_WORDS = 300;
+
+  function countWords(text) {
+    return text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+  }
+
+  function updateWordCount(role) {
+    const textarea = document.getElementById('isi-' + role);
+    const counter  = document.getElementById('word-count-' + role);
+    if (!textarea || !counter) return;
+
+    const words = countWords(textarea.value);
+    counter.textContent = words + ' kata';
+
+    if (words >= MAX_WORDS) {
+      counter.classList.add('text-red-500', 'font-semibold');
+      counter.classList.remove('text-(--muted)', 'text-amber-500');
+      // Potong teks jika melebihi batas
+      if (words > MAX_WORDS) {
+        const parts = textarea.value.trim().split(/\s+/);
+        textarea.value = parts.slice(0, MAX_WORDS).join(' ');
+        counter.textContent = MAX_WORDS + ' kata (batas maksimum)';
+      }
+    } else if (words >= MAX_WORDS * 0.85) {
+      counter.classList.add('text-amber-500', 'font-semibold');
+      counter.classList.remove('text-red-500', 'text-(--muted)');
+    } else {
+      counter.classList.remove('text-red-500', 'text-amber-500', 'font-semibold');
+      counter.classList.add('text-(--muted)');
+    }
+  }
+
+  function switchInfoTab(role) {
+    // Sembunyikan semua panel
+    ['admin', 'opd', 'bps'].forEach(r => {
+      const panel = document.getElementById('info-panel-' + r);
+      const tab   = document.getElementById('tab-' + r);
+      if (panel) panel.classList.add('hidden');
+      if (tab) {
+        tab.classList.remove('bg-(--brand)', 'text-white', 'shadow-sm');
+        tab.classList.add('text-(--muted)');
+      }
+    });
+    // Tampilkan yang dipilih
+    const activePanel = document.getElementById('info-panel-' + role);
+    const activeTab   = document.getElementById('tab-' + role);
+    if (activePanel) activePanel.classList.remove('hidden');
+    if (activeTab) {
+      activeTab.classList.add('bg-(--brand)', 'text-white', 'shadow-sm');
+      activeTab.classList.remove('text-(--muted)');
+    }
+    // Update word count untuk panel yang baru dibuka
+    updateWordCount(role);
+  }
+
+  // Init word count untuk semua panel saat halaman load
+  document.addEventListener('DOMContentLoaded', () => {
+    ['admin', 'opd', 'bps'].forEach(r => updateWordCount(r));
+  });
+</script>
+
+@endsection
