@@ -1,6 +1,11 @@
 /**
  * LKE Create (OPD Isi Lembar Kerja Evaluasi) — logic dipisah dari Blade.
  * Config harus sudah di-set di window.LKE_CREATE_CONFIG sebelum script ini dimuat.
+   *
+   * Prinsip desain:
+   * - Server tetap jadi sumber kebenaran: controller akan menolak perubahan jika paket dikunci BPS (`is_locked_bps`).
+   * - UI mencoba membantu user: disable input + toast message, tapi bukan satu-satunya pengaman.
+   * - Scroll accordion menggunakan offset header supaya POV konsisten (hindari jatuh ke bawah panel).
  */
 (function () {
   const C = window.LKE_CREATE_CONFIG || {};
@@ -19,6 +24,9 @@
   const INITIAL_UMUM = C.initialUmum || {};
   const INITIAL_UMUM_COMPLETE = !!C.initialUmumComplete;
   const AUTH_USER_ID = String(C.authUserId ?? '');
+  // Offset scroll untuk header sticky (lihat `.scroll-mt-header` di app.css).
+  // Nilai JS harus >= scroll-margin-top agar posisi berhenti tidak tertutup header.
+  const SCROLL_HEADER_OFFSET = 110;
 
   function slugifyKey(value) {
     return (value || '')
@@ -33,6 +41,9 @@
   const timers = {};
   const selectedFiles = {};
   const MAX_UPLOAD_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+  // Forward declarations & exposure
+  window.finalizeAll = (...args) => finalizeAll(...args);
 
   function buildLocalStorageKey() {
     const umum = getUmum();
@@ -51,6 +62,105 @@
   const toast = (typeof window.showToast === 'function')
     ? window.showToast
     : (message) => alert(message);
+
+  function scrollToElementTop(el, offset = SCROLL_HEADER_OFFSET) {
+    // Manual scroll lebih stabil daripada scrollIntoView() saat panel accordion berubah tinggi.
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const top = window.scrollY + rect.top - offset;
+    const clamped = Math.max(0, top);
+    window.scrollTo({ top: clamped, behavior: 'instant' });
+  }
+
+  function getCardByAccordionId(accId) {
+    const content = document.getElementById(accId);
+    if (!content) return null;
+    return content.closest('.indicator-card') || content.parentElement;
+  }
+
+  function getAccordionHeaderById(accId) {
+    const content = document.getElementById(accId);
+    if (!content) return null;
+    // Struktur: [header].nextSibling = [content]
+    const header = content.previousElementSibling;
+    return header && header.classList.contains('lke-head-toggle') ? header : (content.closest('.indicator-card')?.querySelector('.lke-head-toggle') || null);
+  }
+
+  function ensureConfirmModal() {
+    if (document.getElementById('kpConfirmModal')) return;
+
+    const wrap = document.createElement('div');
+    wrap.id = 'kpConfirmModal';
+    wrap.className = 'fixed inset-0 z-[60] hidden';
+    wrap.innerHTML = `
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-[1px]" data-kp-confirm-overlay></div>
+      <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="w-full max-w-md bg-(--panel) border border-(--border-strong) rounded-2xl shadow-2xl overflow-hidden">
+          <div class="p-5 border-b border-(--border-strong) bg-black/5 dark:bg-white/5">
+            <div class="font-bold text-(--text) text-base" id="kpConfirmTitle">Konfirmasi</div>
+          </div>
+          <div class="p-5">
+            <div class="text-sm text-(--text) leading-relaxed" id="kpConfirmMessage">...</div>
+          </div>
+          <div class="p-5 pt-0 flex items-center justify-end gap-2">
+            <button type="button" class="px-4 py-2 rounded-xl border border-(--border-strong) bg-transparent text-(--text) hover:bg-white/5 transition-colors text-sm font-semibold" data-kp-confirm-no>
+              Tidak
+            </button>
+            <button type="button" class="px-4 py-2 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 transition-colors text-sm font-bold shadow-sm shadow-emerald-500/20" data-kp-confirm-yes>
+              Ya, Final
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(wrap);
+  }
+
+  function confirmPopup({ title = 'Konfirmasi', message = '', yesText = 'Ya', noText = 'Tidak' } = {}) {
+    // Custom modal (bukan window.confirm) agar UX konsisten dark/light mode + bisa HTML message.
+    ensureConfirmModal();
+    const modal = document.getElementById('kpConfirmModal');
+    const titleEl = document.getElementById('kpConfirmTitle');
+    const msgEl = document.getElementById('kpConfirmMessage');
+    const btnYes = modal.querySelector('[data-kp-confirm-yes]');
+    const btnNo = modal.querySelector('[data-kp-confirm-no]');
+    const overlay = modal.querySelector('[data-kp-confirm-overlay]');
+
+    if (titleEl) titleEl.textContent = title;
+    if (msgEl) msgEl.innerHTML = message;
+    if (btnYes) btnYes.textContent = yesText;
+    if (btnNo) btnNo.textContent = noText;
+
+    modal.classList.remove('hidden');
+
+    return new Promise((resolve) => {
+      let done = false;
+
+      const cleanup = () => {
+        if (done) return;
+        done = true;
+        modal.classList.add('hidden');
+        btnYes?.removeEventListener('click', onYes);
+        btnNo?.removeEventListener('click', onNo);
+        overlay?.removeEventListener('click', onNo);
+        document.removeEventListener('keydown', onKey);
+      };
+
+      const onYes = () => { cleanup(); resolve(true); };
+      const onNo = () => { cleanup(); resolve(false); };
+      const onKey = (e) => {
+        if (e.key === 'Escape') onNo();
+      };
+
+      btnYes?.addEventListener('click', onYes);
+      btnNo?.addEventListener('click', onNo);
+      overlay?.addEventListener('click', onNo);
+      document.addEventListener('keydown', onKey);
+
+      // Fokus ke tombol "Ya" biar enak keyboard user
+      setTimeout(() => btnYes?.focus?.(), 0);
+    });
+  }
 
   function getUmum() {
     const nama = document.getElementById('nama_kegiatan');
@@ -174,9 +284,9 @@
       });
 
       document.querySelectorAll(`#body${domainId} .kriteria-row`).forEach((row) => {
-        row.classList.remove('bg-[var(--brand)]/10', 'dark:bg-[var(--brand)]/20');
+        row.classList.remove('bg-(--brand)/10', 'dark:bg-(--brand)/20');
         const spanNum = row.querySelector('.span-num');
-        if (spanNum) spanNum.classList.remove('text-[var(--brand)]');
+        if (spanNum) spanNum.classList.remove('text-(--brand)');
         const tdKrit = row.querySelector('.td-kriteria');
         if (tdKrit) tdKrit.classList.remove('font-medium');
       });
@@ -188,7 +298,7 @@
       if (fileInfo) fileInfo.innerHTML = '';
 
       const saveInfo = document.getElementById('saveInfo' + domainId);
-      if (saveInfo) saveInfo.innerHTML = '<span class="text-[var(--muted)]">Status:</span> <span class="font-bold text-[var(--text)]">Belum tersimpan</span>';
+      if (saveInfo) saveInfo.innerHTML = '<span class="text-(--muted)">Status:</span> <span class="font-bold text-(--text)">Belum tersimpan</span>';
 
       setBadge(domainId, 'empty');
     });
@@ -218,18 +328,18 @@
 
   function highlightSelectedRow(domainId, kriteriaId) {
     document.querySelectorAll(`#body${domainId} .kriteria-row`).forEach((row) => {
-      row.classList.remove('bg-[var(--brand)]/10', 'dark:bg-[var(--brand)]/20');
+      row.classList.remove('bg-(--brand)/10', 'dark:bg-(--brand)/20');
       const spanNum = row.querySelector('.span-num');
-      if (spanNum) spanNum.classList.remove('text-[var(--brand)]');
+      if (spanNum) spanNum.classList.remove('text-(--brand)');
       const tdKrit = row.querySelector('.td-kriteria');
       if (tdKrit) tdKrit.classList.remove('font-medium');
     });
 
     const row = document.getElementById(`row${domainId}_${kriteriaId}`);
     if (row) {
-      row.classList.add('bg-[var(--brand)]/10', 'dark:bg-[var(--brand)]/20');
+      row.classList.add('bg-(--brand)/10', 'dark:bg-(--brand)/20');
       const spanNum = row.querySelector('.span-num');
-      if (spanNum) spanNum.classList.add('text-[var(--brand)]');
+      if (spanNum) spanNum.classList.add('text-(--brand)');
       const tdKrit = row.querySelector('.td-kriteria');
       if (tdKrit) tdKrit.classList.add('font-medium');
     }
@@ -287,12 +397,12 @@
     if (CAN_FILL_DATA_UMUM) {
       if (!umum.nama_kegiatan || !umum.tahun_id || !umum.nomor_rekomendasi) {
         const info = document.getElementById('saveInfo' + domainId);
-        if (info) info.innerHTML = '<span class="text-[var(--muted)]">Status:</span> <span class="text-amber-500 font-bold">Isi data umum dulu</span>';
+      if (info) info.innerHTML = '<span class="text-(--muted)">Status:</span> <span class="text-amber-500 font-bold">Isi data umum dulu</span>';
         return false;
       }
     } else if (!umum.tahun_id) {
       const info = document.getElementById('saveInfo' + domainId);
-      if (info) info.innerHTML = '<span class="text-[var(--muted)]">Status:</span> <span class="text-amber-500 font-bold">Pilih tahun dulu</span>';
+      if (info) info.innerHTML = '<span class="text-(--muted)">Status:</span> <span class="text-amber-500 font-bold">Pilih tahun dulu</span>';
       return false;
     }
 
@@ -307,7 +417,7 @@
 
     try {
       const saveInfo = document.getElementById('saveInfo' + domainId);
-      if (saveInfo) saveInfo.innerHTML = '<span class="text-[var(--muted)]">Status:</span> <span class="text-cyan-500 font-bold"><i class="bi bi-arrow-repeat animate-spin inline-block"></i> Menyimpan...</span>';
+      if (saveInfo) saveInfo.innerHTML = '<span class="text-(--muted)">Status:</span> <span class="text-cyan-500 font-bold"><i class="bi bi-arrow-repeat animate-spin inline-block"></i> Menyimpan...</span>';
 
       const res = await fetch(AUTOSAVE_URL, {
         method: 'POST',
@@ -318,7 +428,7 @@
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.ok) {
-        if (saveInfo) saveInfo.innerHTML = '<span class="text-[var(--muted)]">Status:</span> <span class="text-red-500 font-bold">Gagal tersimpan</span>';
+        if (saveInfo) saveInfo.innerHTML = '<span class="text-(--muted)">Status:</span> <span class="text-red-500 font-bold">Gagal tersimpan</span>';
         return false;
       }
 
@@ -329,14 +439,14 @@
 
       setBadge(domainId, data.progress);
 
-      if (saveInfo) saveInfo.innerHTML = '<span class="text-[var(--muted)]">Status:</span> <span class="text-emerald-500 font-bold"><i class="bi bi-check-lg"></i> Tersimpan (Draft)</span>';
+      if (saveInfo) saveInfo.innerHTML = '<span class="text-(--muted)">Status:</span> <span class="text-emerald-500 font-bold"><i class="bi bi-check-lg"></i> Tersimpan (Draft)</span>';
 
       saveToLocal();
       return true;
     } catch (e) {
       console.error(e);
       const saveInfo = document.getElementById('saveInfo' + domainId);
-      if (saveInfo) saveInfo.innerHTML = '<span class="text-[var(--muted)]">Status:</span> <span class="text-red-500 font-bold">Error jaringan</span>';
+      if (saveInfo) saveInfo.innerHTML = '<span class="text-(--muted)">Status:</span> <span class="text-red-500 font-bold">Error jaringan</span>';
       return false;
     }
   }
@@ -371,6 +481,9 @@
   }
 
   function toggleAccordion(accId) {
+    // Accordion behavior:
+    // - Menutup panel lain sebelum membuka panel baru
+    // - Scroll ke header panel yang dibuka (2x) untuk mengatasi reflow saat tinggi konten berubah
     const activeContent = document.getElementById(accId);
     if (!activeContent) return;
 
@@ -386,14 +499,19 @@
 
     document.querySelectorAll('.btn-toggle-acc').forEach((btn) => {
       btn.textContent = 'Buka';
-      btn.classList.remove('bg-[var(--brand)]', 'text-white');
-      btn.classList.add('text-[var(--text)]', 'bg-transparent');
+      btn.classList.remove('bg-(--brand)', 'text-white');
+      btn.classList.add('text-(--text)', 'bg-transparent');
       const icon = btn.querySelector('i');
       if (icon) icon.style.transform = 'rotate(0deg)';
     });
 
     if (isHidden) {
       activeContent.classList.remove('hidden');
+
+      // Scroll langsung tanpa jeda — behavior 'instant' tidak memerlukan animasi selesai dulu.
+      const header = getAccordionHeaderById(accId) || getCardByAccordionId(accId);
+      if (header) scrollToElementTop(header);
+
       activeContent.style.transformOrigin = 'top center';
       activeContent.style.transform = 'scaleY(0.95)';
       activeContent.style.opacity = '0';
@@ -402,21 +520,13 @@
       setTimeout(() => {
         activeContent.style.transform = 'scaleY(1)';
         activeContent.style.opacity = '1';
-
-        // Scroll ke bagian paling atas accordion (card indikator) sebagai patokan
-        setTimeout(() => {
-          const card = activeContent.closest('.indicator-card');
-          if (card) {
-            card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
-        }, 300); // Wait for the expand animation to settle
       }, 10);
 
       const btn = document.querySelector(`.btn-toggle-acc[data-target="${accId}"]`);
       if (btn) {
         btn.innerHTML = '<i class="bi bi-chevron-up transition-transform duration-500 inline-block"></i> Tutup';
-        btn.classList.remove('text-[var(--text)]', 'bg-transparent');
-        btn.classList.add('bg-[var(--brand)]', 'text-white', 'border-[var(--brand)]');
+        btn.classList.remove('text-(--text)', 'bg-transparent');
+        btn.classList.add('bg-(--brand)', 'text-white', 'border-(--brand)');
       }
     }
   }
@@ -447,7 +557,7 @@
       <div class="flex items-center gap-3 p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-xl mb-3">
         ${thumb}
         <div class="flex-1 min-w-0">
-          <div class="font-semibold text-[var(--text)] text-xs md:text-sm leading-tight truncate" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
+          <div class="font-semibold text-(--text) text-xs md:text-sm leading-tight truncate" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
           <a href="${f.url}" target="_blank" class="text-[10px] md:text-xs text-emerald-600 hover:text-emerald-700 hover:underline mt-1 inline-block font-medium"><i class="bi bi-box-arrow-up-right me-1"></i> Buka File</a>
         </div>
       </div>
@@ -466,12 +576,12 @@
     if (!wrap) return;
 
     if (!data.files || data.files.length === 0) {
-      wrap.innerHTML = '<div class="text-[var(--muted)] text-xs md:text-sm italic">Belum ada file.</div>';
+      wrap.innerHTML = '<div class="text-(--muted) text-xs md:text-sm italic">Belum ada file.</div>';
       state[domainId].hasFiles = false;
       return;
     }
 
-    let html = '<div class="font-semibold text-xs md:text-sm mb-2 text-[var(--text)]">File Tersimpan di Server:</div><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">';
+    let html = '<div class="font-semibold text-xs md:text-sm mb-2 text-(--text)">File Tersimpan di Server:</div><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">';
     html += data.files.map(fileCardHtml).join('');
     html += '</div>';
     wrap.innerHTML = html;
@@ -489,18 +599,18 @@
       return;
     }
 
-    let html = '<div class="font-semibold text-xs md:text-sm mb-2 text-[var(--text)]">File Siap Upload:</div><div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mb-4">';
+    let html = '<div class="font-semibold text-xs md:text-sm mb-2 text-(--text)">File Siap Upload:</div><div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mb-4">';
 
     files.forEach((f, idx) => {
       const isImg = f.type && f.type.startsWith('image/');
       html += `
-        <div class="flex items-center gap-3 p-3 bg-white/5 border border-[var(--border-strong)] rounded-xl relative group pr-10">
-          <div class="w-12 h-12 rounded-lg bg-[var(--brand)]/10 flex items-center justify-center text-[var(--brand)] shrink-0 overflow-hidden" id="thumb_${domainId}_${idx}">
+        <div class="flex items-center gap-3 p-3 bg-white/5 border border-(--border-strong) rounded-xl relative group pr-10">
+          <div class="w-12 h-12 rounded-lg bg-(--brand)/10 flex items-center justify-center text-(--brand) shrink-0 overflow-hidden" id="thumb_${domainId}_${idx}">
              ${isImg ? '<img alt="preview" class="w-full h-full object-cover"/>' : '<i class="bi bi-file-earmark-plus text-xl md:text-2xl"></i>'}
           </div>
           <div class="flex-1 min-w-0">
-              <div class="text-xs md:text-sm font-semibold text-[var(--text)] truncate" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
-              <div class="text-[10px] md:text-xs text-[var(--muted)] mt-0.5">${formatBytes(f.size)} • ${escapeHtml(f.type || 'unknown')}</div>
+              <div class="text-xs md:text-sm font-semibold text-(--text) truncate" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
+              <div class="text-[10px] md:text-xs text-(--muted) mt-0.5">${formatBytes(f.size)} • ${escapeHtml(f.type || 'unknown')}</div>
           </div>
           <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-500/10 transition-colors" aria-label="Hapus" onclick="window.removeSelectedFile(${domainId}, ${idx})">
             <i class="bi bi-x-lg"></i>
@@ -511,7 +621,7 @@
 
     html += `
       <div class="flex gap-2 flex-wrap">
-        <button type="button" class="px-3 md:px-4 py-1.5 md:py-2 bg-[var(--brand)] text-white rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2 text-xs md:text-sm font-medium" onclick="window.uploadSelectedFiles(${domainId})">
+        <button type="button" class="px-3 md:px-4 py-1.5 md:py-2 bg-(--brand) text-white rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2 text-xs md:text-sm font-medium" onclick="window.uploadSelectedFiles(${domainId})">
           <i class="bi bi-upload"></i> Upload File
         </button>
         <button type="button" class="px-3 md:px-4 py-1.5 md:py-2 bg-transparent border border-red-500/50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-colors flex items-center gap-2 text-xs md:text-sm font-medium" onclick="window.clearSelectedFiles(${domainId})">
@@ -677,6 +787,10 @@
   }
 
   async function finalizeAll() {
+    // Final / Kumpulkan (OPD):
+    // - Selalu tampilkan konfirmasi custom (Yes/No)
+    // - Validasi kelengkapan indikator; bila gagal, scroll ke indikator pertama yang belum lengkap
+    // - UX: tidak memakai overlay full-page; tombol di-disable + spinner sampai selesai
     if (!guardIndicatorAccess()) return;
     const umum = getUmum();
     if (CAN_FILL_DATA_UMUM && (!umum.nama_kegiatan || !umum.tahun_id || !umum.nomor_rekomendasi)) {
@@ -695,10 +809,18 @@
       btnFinal.disabled = true;
     }
 
-    const ids = allDomainIds();
-    const notComplete = ids.filter((id) => !isDomainComplete(id));
-    if (notComplete.length > 0) {
-      toast(`Masih ada ${notComplete.length} indikator belum lengkap.`, 'error');
+    // Validasi tambahan (popup Yes/No) - harus selalu muncul saat klik Final/Kumpulkan
+    const ok = await confirmPopup({
+      title: 'Final / Kumpulkan LKE',
+      message:
+        '<div class="space-y-2">' +
+          '<div>Anda yakin ingin <b>Final/Kumpulkan</b> LKE ini?</div>' +
+          '<div class="text-[12px] text-(--muted)">Pastikan tingkat & penjelasan terisi, serta bukti dukung sudah sesuai (wajib untuk tingkat 2–5).</div>' +
+        '</div>',
+      yesText: 'Ya, Final',
+      noText: 'Tidak',
+    });
+    if (!ok) {
       if (btnFinal) {
         btnFinal.innerHTML = originalText;
         btnFinal.disabled = false;
@@ -706,7 +828,22 @@
       return;
     }
 
-    showLoadingOverlay('Memfinalisasi semua indikator...');
+    const ids = allDomainIds();
+    const notComplete = ids.filter((id) => !isDomainComplete(id));
+    if (notComplete.length > 0) {
+      toast(`Masih ada ${notComplete.length} indikator belum lengkap.`, 'error');
+
+      // Arahkan POV ke indikator pertama yang belum lengkap (ke header card, bukan ke bawah accordion)
+      const firstId = notComplete[0];
+      const card = document.getElementById('card' + firstId);
+      if (card) scrollToElementTop(card);
+
+      if (btnFinal) {
+        btnFinal.innerHTML = originalText;
+        btnFinal.disabled = false;
+      }
+      return;
+    }
 
     try {
       const res = await fetch(FINALIZE_ALL_URL, {
@@ -726,11 +863,9 @@
           btnFinal.innerHTML = originalText;
           btnFinal.disabled = false;
         }
-        hideLoadingOverlay();
         return;
       }
 
-      updateLoadingText('Selesai!');
       toast('Berhasil Final/Kumpulkan. Siap untuk pengisian berikutnya.', 'success');
     } catch (e) {
       console.error(e);
@@ -739,7 +874,6 @@
         btnFinal.innerHTML = originalText;
         btnFinal.disabled = false;
       }
-      hideLoadingOverlay();
       return;
     }
 
@@ -748,7 +882,6 @@
       btnFinal.disabled = false;
     }
     setTimeout(() => {
-      hideLoadingOverlay();
       resetFormAfterFinalize();
     }, 1500);
   }
@@ -832,7 +965,7 @@
         setBadge(domainId, status);
 
         const info = document.getElementById('saveInfo' + domainId);
-        if (info) info.innerHTML = '<span class="text-[var(--muted)]">Status:</span> <span class="text-cyan-500 font-bold">Draft dimuat</span>';
+        if (info) info.innerHTML = '<span class="text-(--muted)">Status:</span> <span class="text-cyan-500 font-bold">Draft dimuat</span>';
 
         if (d.lke_id) refreshPromises.push(refreshFiles(domainId));
       }
@@ -882,7 +1015,7 @@
         setBadge(domainId, status);
 
         const info = document.getElementById('saveInfo' + domainId);
-        if (info) info.innerHTML = '<span class="text-[var(--muted)]">Status:</span> <span class="text-amber-500 font-bold">Draft lokal dimuat</span>';
+        if (info) info.innerHTML = '<span class="text-(--muted)">Status:</span> <span class="text-amber-500 font-bold">Draft lokal dimuat</span>';
       }
     }
 
@@ -955,6 +1088,43 @@
       });
     });
 
+    // Event delegation untuk menghindari inline onclick/onchange/oninput di Blade (lebih bersih + linter-friendly)
+    document.addEventListener('click', (e) => {
+      const row = e.target.closest('[data-kp-select-row]');
+      if (!row) return;
+      if (!guardIndicatorAccess()) return;
+      const domainId = parseInt(row.getAttribute('data-domain-id') || '0', 10);
+      const kriteriaId = parseInt(row.getAttribute('data-kriteria-id') || '0', 10);
+      const tingkat = parseInt(row.getAttribute('data-tingkat') || '0', 10);
+      if (domainId > 0 && kriteriaId > 0 && tingkat > 0) selectRow(domainId, kriteriaId, tingkat);
+    });
+
+    document.addEventListener('change', (e) => {
+      const radio = e.target.closest('[data-kp-tingkat-radio]');
+      if (!radio) return;
+      if (!guardIndicatorAccess()) return;
+      const domainId = parseInt(radio.getAttribute('data-domain-id') || '0', 10);
+      const kriteriaId = parseInt(radio.getAttribute('data-kriteria-id') || '0', 10);
+      const tingkat = parseInt(radio.getAttribute('data-tingkat') || '0', 10);
+      if (domainId > 0 && kriteriaId > 0 && tingkat > 0) onSelectTingkat(domainId, kriteriaId, tingkat);
+    });
+
+    document.addEventListener('input', (e) => {
+      const ta = e.target.closest('[data-kp-penjelasan]');
+      if (!ta) return;
+      if (!guardIndicatorAccess()) return;
+      const domainId = parseInt(ta.getAttribute('data-domain-id') || '0', 10);
+      if (domainId > 0) onPenjelasanInput(domainId);
+    });
+
+    document.addEventListener('change', (e) => {
+      const fi = e.target.closest('[data-kp-files]');
+      if (!fi) return;
+      if (!guardIndicatorAccess()) return;
+      const domainId = parseInt(fi.getAttribute('data-domain-id') || '0', 10);
+      if (domainId > 0) onFilesSelected(domainId);
+    });
+
     window.addEventListener('online', async () => {
       const local = loadFromLocal();
       if (!local || !local.state) return;
@@ -972,7 +1142,7 @@
     hydrateFromDrafts();
   }
 
-  // Expose for onclick/oninput in Blade
+  // Expose fungsi-fungsi tertentu untuk kompatibilitas / debugging (tidak wajib untuk event utama).
   window.finalizeAll = finalizeAll;
   window.removeSelectedFile = removeSelectedFile;
   window.uploadSelectedFiles = uploadSelectedFiles;

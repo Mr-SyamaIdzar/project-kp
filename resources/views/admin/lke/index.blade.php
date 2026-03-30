@@ -95,15 +95,29 @@
           </td>
 
           <td class="p-4 text-center">
-            <a class="px-2 md:px-3 py-1 md:py-1.5 bg-transparent border border-cyan-500/50 text-cyan-500 hover:bg-cyan-500 hover:text-white rounded-xl transition-colors inline-flex items-center gap-2 text-xs md:text-sm"
-               href="{{ route('lke.show', [
-                  'user_id' => $row->user_id,
-                  'tahun_id' => $row->tahun_id,
-                  'nama_kegiatan' => $row->nama_kegiatan,
-                  'nomor_rekomendasi' => $row->nomor_rekomendasi,
-               ]) }}">
-              <i class="bi bi-eye"></i> Detail
-            </a>
+            <div class="flex items-center justify-center gap-2">
+              <a class="px-2 md:px-3 py-1 md:py-1.5 bg-transparent border border-cyan-500/50 text-cyan-500 hover:bg-cyan-500 hover:text-white rounded-xl transition-colors inline-flex items-center gap-2 text-xs md:text-sm"
+                 href="{{ route('lke.show', [
+                    'user_id' => $row->user_id,
+                    'tahun_id' => $row->tahun_id,
+                    'nama_kegiatan' => $row->nama_kegiatan,
+                    'nomor_rekomendasi' => $row->nomor_rekomendasi,
+                 ]) }}">
+                <i class="bi bi-eye"></i> <span class="hidden md:inline">Detail</span>
+              </a>
+
+              <form action="{{ route('lke.destroy') }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin menghapus seluruh paket LKE ini? Seluruh data evaluasi dan file bukti dukung akan dihapus permanen.')" class="inline">
+                @csrf
+                @method('DELETE')
+                <input type="hidden" name="user_id" value="{{ $row->user_id }}">
+                <input type="hidden" name="tahun_id" value="{{ $row->tahun_id }}">
+                <input type="hidden" name="nama_kegiatan" value="{{ $row->nama_kegiatan }}">
+                <input type="hidden" name="nomor_rekomendasi" value="{{ $row->nomor_rekomendasi }}">
+                <button type="submit" class="px-2 md:px-3 py-1 md:py-1.5 bg-transparent border border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-colors inline-flex items-center gap-2 text-xs md:text-sm">
+                  <i class="bi bi-trash"></i> <span class="hidden md:inline">Hapus</span>
+                </button>
+              </form>
+            </div>
           </td>
         </tr>
       @empty

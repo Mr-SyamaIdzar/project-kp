@@ -67,7 +67,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <!-- Nama -->
         <div>
-          <label class="block text-xs md:text-sm font-semibold text-(--text) mb-2">Nama Lengkap</label>
+          <label class="block text-xs md:text-sm font-semibold text-(--text) mb-2">Nama Instansi</label>
           <input type="text" class="w-full bg-(--sidebar-bg) border {{ $errors->has('nama') ? 'border-red-500 focus:ring-red-500' : 'border-(--border-strong) focus:ring-(--brand)' }} text-(--text) rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 transition-all" name="nama" value="{{ old('nama', $user->nama) }}" required />
           @error('nama')
             <div class="text-red-500 text-[10px] md:text-xs mt-1">{{ $message }}</div>

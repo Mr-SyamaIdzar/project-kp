@@ -16,7 +16,7 @@ class Kriteria extends Model
 
     public function domain()
     {
-        return $this->belongsTo(Domain::class, 'domain_id');
+        return $this->belongsTo(Indikator::class, 'domain_id');
     }
 
     public function kriterias()

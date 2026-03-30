@@ -23,6 +23,8 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 Route::middleware(['auth','role:admin'])->prefix('admin')->group(function () {
     Route::get('/dashboard', [AdminDashboard::class, 'index'])->name('admin.dashboard');
+    Route::get('/dashboard/pie-stats', [AdminDashboard::class, 'pieStats'])->name('admin.dashboard.pie-stats');
+    Route::get('/dashboard/stats', [AdminDashboard::class, 'stats'])->name('admin.dashboard.stats');
     Route::get('/profile', [\App\Http\Controllers\Admin\ProfileController::class, 'edit'])->name('admin.profile.edit');
     Route::post('/profile/update-profile', [\App\Http\Controllers\Admin\ProfileController::class, 'updateProfile'])->name('admin.profile.update-profile');
     Route::post('/profile/update-password', [\App\Http\Controllers\Admin\ProfileController::class, 'updatePassword'])->name('admin.profile.update-password');
@@ -36,6 +38,7 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->group(function () {
     Route::get('/lke', [AdminLke::class, 'index'])->name('lke.index');
     Route::get('/lke/export', [AdminLke::class, 'exportExcel'])->name('lke.export');
     Route::get('/lke/show', [AdminLke::class, 'show'])->name('lke.show');
+    Route::delete('/lke/delete', [AdminLke::class, 'destroy'])->name('lke.destroy');
 
     Route::get('/master-menu', [MasterMenuController::class, 'index'])->name('master-menu.index');
     Route::put('/master-menu', [MasterMenuController::class, 'update'])->name('master-menu.update');
@@ -70,6 +73,8 @@ Route::middleware(['auth','role:opd'])->prefix('opd')->name('opd.')->group(funct
 
 Route::middleware(['auth', 'role:bps'])->prefix('bps')->name('bps.')->group(function () {
     Route::get('/dashboard', [BpsDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard/pie-stats', [BpsDashboardController::class, 'pieStats'])->name('dashboard.pie-stats');
+    Route::get('/dashboard/stats', [BpsDashboardController::class, 'stats'])->name('dashboard.stats');
     Route::get('/profile', [\App\Http\Controllers\BPS\ProfileController::class, 'edit'])->name('profile.edit');
     Route::post('/profile/update-profile', [\App\Http\Controllers\BPS\ProfileController::class, 'updateProfile'])->name('profile.update-profile');
     Route::post('/profile/update-password', [\App\Http\Controllers\BPS\ProfileController::class, 'updatePassword'])->name('profile.update-password');
@@ -80,4 +85,5 @@ Route::middleware(['auth', 'role:bps'])->prefix('bps')->name('bps.')->group(func
     Route::get('/penilaian/show', [BpsPenilaianController::class, 'show'])->name('penilaian.show');
     Route::post('/penilaian/revisi-targets', [BpsPenilaianController::class, 'updateRevisiTargets'])->name('penilaian.revisi-targets');
     Route::post('/penilaian/evaluasi', [BpsPenilaianController::class, 'evaluasiLke'])->name('penilaian.evaluasi');
+    Route::post('/penilaian/finalize', [BpsPenilaianController::class, 'finalize'])->name('penilaian.finalize');
 });

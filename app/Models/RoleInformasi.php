@@ -12,11 +12,14 @@ class RoleInformasi extends Model
         'role',
         'judul',
         'isi',
+        'warna',
     ];
 
     /**
-     * Ambil informasi untuk role tertentu,
-     * atau buat default jika belum ada.
+     * Ambil informasi untuk role tertentu, atau buat default jika belum ada.
+     *
+     * `warna` dipakai oleh Blade untuk menentukan gaya card informasi di dashboard
+     * (mendukung theme light/dark).
      */
     public static function forRole(string $role): self
     {
@@ -25,6 +28,7 @@ class RoleInformasi extends Model
             [
                 'judul' => 'Informasi',
                 'isi'   => 'Tidak ada informasi tersedia.',
+                'warna' => 'neutral',
             ]
         );
     }

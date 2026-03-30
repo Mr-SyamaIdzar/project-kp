@@ -104,11 +104,16 @@ class MasterMenuController extends Controller
                     $fail("Isi informasi maksimal 300 kata (saat ini {$wordCount} kata).");
                 }
             }],
+            'warna' => ['nullable', 'string', Rule::in(['neutral', 'blue', 'red', 'amber', 'emerald'])],
         ]);
 
         RoleInformasi::updateOrCreate(
             ['role' => $validated['role']],
-            ['judul' => $validated['judul'], 'isi' => $validated['isi']]
+            [
+                'judul' => $validated['judul'],
+                'isi'   => $validated['isi'],
+                'warna' => $validated['warna'] ?? 'neutral',
+            ]
         );
 
         return redirect()

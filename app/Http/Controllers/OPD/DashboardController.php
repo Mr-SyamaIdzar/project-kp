@@ -4,7 +4,7 @@ namespace App\Http\Controllers\OPD;
 
 use App\Http\Controllers\Controller;
 use App\Models\BuktiDukung;
-use App\Models\Domain;
+use App\Models\Indikator;
 use App\Models\LembarKerjaEvaluasi;
 use App\Models\RoleInformasi;
 use Illuminate\Support\Facades\Auth;
@@ -32,7 +32,7 @@ class DashboardController extends Controller
                     ->pluck('y')
             )
             ->merge(
-                Domain::query()
+                Indikator::query()
                     ->selectRaw('DISTINCT YEAR(created_at) as y')
                     ->pluck('y')
             )
@@ -59,7 +59,7 @@ class DashboardController extends Controller
             ->whereYear('created_at', $selectedYear)
             ->count();
 
-        $totalIndikator = Domain::query()
+        $totalIndikator = Indikator::query()
             ->whereYear('created_at', $selectedYear)
             ->count();
 

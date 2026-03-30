@@ -4,9 +4,13 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\LembarKerjaEvaluasi;
+use App\Models\Indikator;
+use App\Models\LkeRevisiRequest;
 use App\Models\Tahun;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 class LembarKerjaEvaluasiController extends Controller
 {
@@ -105,18 +109,51 @@ class LembarKerjaEvaluasiController extends Controller
             ->unique('domain_id')
             ->keyBy('domain_id');
 
+        $beforeRevisiItems = $rawItems
+            ->filter(fn ($row) => (string) $row->status !== 'revisi')
+            ->unique('domain_id')
+            ->keyBy('domain_id');
+
         // semua domain agar urut & tampil walau belum ada row LKE
-        $domains = \App\Models\Domain::with(['kriterias' => function($q){
+        $domains = Indikator::with(['kriterias' => function($q){
                 $q->orderBy('tingkat');
             }])
             ->orderBy('kode')
             ->get();
 
-        return view('admin.lke.show', compact('user','tahun','domains','items','namaKegiatan','nomorRek'));
+        $revisedRequestMap = collect();
+        if (\Illuminate\Support\Facades\Schema::hasTable('lke_revisi_requests')) {
+            $revisedRequestMap = \App\Models\LkeRevisiRequest::query()
+                ->with(['revisedLke.buktiDukung'])
+                ->where('user_id', $userId)
+                ->where('tahun_id', $tahunId)
+                ->where('nama_kegiatan', $namaKegiatan)
+                ->where('nomor_rekomendasi', $nomorRek)
+                ->where('status', 'revised')
+                ->get()
+                ->keyBy('domain_id');
+        }
+
+        $domainRecordsMap = $rawItems->groupBy('domain_id');
+
+        return view('admin.lke.show', compact('user','tahun','domains','items','beforeRevisiItems','domainRecordsMap','revisedRequestMap','namaKegiatan','nomorRek'));
     }
 
     public function exportExcel(Request $request)
     {
+        /**
+         * Export Excel monitoring LKE (Admin/BPS export).
+         *
+         * Format export mengikuti kebutuhan stakeholder:
+         * - Penjelasan menampilkan histori: Sebelum Revisi / Revisi 1 / Revisi 2 (jika ada)
+         * - Catatan BPS menampilkan: Catatan Evaluasi + Alasan Revisi 1 + Alasan Revisi 2 (jika ada)
+         * - Nilai final BPS diambil dari input BPS paling akhir (berdasarkan updated_at) per indikator
+         *
+         * Catatan implementasi:
+         * - Karena histori revisi disimpan sebagai record baru (status='revisi'), export perlu mengelompokkan
+         *   full history per paket+domain (`$byPackageDomain`) untuk menyusun 3 panel teks.
+         * - Alasan revisi per ronde dibaca dari `lke_revisi_requests.catatan` (mapping domain_id + round).
+         */
         $tahunId = (int) $request->get('tahun_id', 0);
         $userId  = (int) $request->get('user_id', 0);
         $namaKegiatan = trim((string) $request->get('nama_kegiatan', ''));
@@ -143,16 +180,13 @@ class LembarKerjaEvaluasiController extends Controller
             ->orderBy('domain_id')
             ->get();
 
-        // Ambil record terbaru per paket+domain agar tidak dobel.
-        $latestPerPackageDomain = $items
-            ->groupBy(function ($row) {
-                return $row->user_id.'|'.$row->tahun_id.'|'.$row->nama_kegiatan.'|'.$row->nomor_rekomendasi.'|'.$row->domain_id;
-            })
-            ->map(fn($group) => $group->sortByDesc('id')->first())
-            ->values();
+        // Group full history per paket+domain (dibutuhkan untuk penjelasan sebelum/rev1/rev2 + nilai final BPS terakhir).
+        $byPackageDomain = $items->groupBy(function ($row) {
+            return $row->user_id.'|'.$row->tahun_id.'|'.$row->nama_kegiatan.'|'.$row->nomor_rekomendasi.'|'.$row->domain_id;
+        });
 
         // Urutan indikator untuk kolom dinamis.
-        $domainOrder = $latestPerPackageDomain
+        $domainOrder = $items
             ->map(function ($row) {
                 return [
                     'id' => (int) $row->domain_id,
@@ -163,19 +197,30 @@ class LembarKerjaEvaluasiController extends Controller
             ->sortBy('kode')
             ->values();
 
-        $packages = $latestPerPackageDomain
+        $packages = $items
             ->groupBy(function ($row) {
                 return $row->user_id.'|'.$row->tahun_id.'|'.$row->nama_kegiatan.'|'.$row->nomor_rekomendasi;
             })
-            ->map(function ($group) {
-                $first = $group->first();
+            ->map(function ($group) use ($byPackageDomain) {
+                $first = $group->sortByDesc('id')->first();
+                $keyBase = $first->user_id.'|'.$first->tahun_id.'|'.$first->nama_kegiatan.'|'.$first->nomor_rekomendasi;
+
+                $domainGroups = collect();
+                foreach ($group->pluck('domain_id')->unique() as $domainId) {
+                    $k = $keyBase.'|'.$domainId;
+                    if (isset($byPackageDomain[$k])) {
+                        $domainGroups[(int) $domainId] = $byPackageDomain[$k];
+                    }
+                }
+
                 return [
                     'user_id' => (int) $first->user_id,
                     'opd_name' => (string) ($first->user->nama ?? $first->user->username ?? '-'),
                     'tahun' => (string) ($first->tahun->tahun ?? '-'),
                     'nama_kegiatan' => (string) $first->nama_kegiatan,
                     'nomor_rekomendasi' => (string) $first->nomor_rekomendasi,
-                    'by_domain' => $group->keyBy('domain_id'),
+                    'tahun_id' => (int) $first->tahun_id,
+                    'domain_groups' => $domainGroups, // domain_id => Collection<LKE history>
                 ];
             })
             ->sortBy([
@@ -185,6 +230,25 @@ class LembarKerjaEvaluasiController extends Controller
                 ['nomor_rekomendasi', 'asc'],
             ])
             ->values();
+
+        // Map alasan revisi per paket+domain+round untuk kebutuhan XLSX
+        $alasanMap = collect();
+        if (\Illuminate\Support\Facades\Schema::hasTable('lke_revisi_requests')) {
+            $reqs = LkeRevisiRequest::query()
+                ->whereIn('user_id', $items->pluck('user_id')->unique())
+                ->whereIn('tahun_id', $items->pluck('tahun_id')->unique())
+                ->whereIn('domain_id', $items->pluck('domain_id')->unique())
+                ->get();
+
+            $alasanMap = $reqs
+                ->groupBy(function ($r) {
+                    return $r->user_id.'|'.$r->tahun_id.'|'.$r->nama_kegiatan.'|'.$r->nomor_rekomendasi.'|'.$r->domain_id.'|'.$r->round;
+                })
+                ->map(function ($g) {
+                    $last = $g->sortByDesc('id')->first();
+                    return trim((string) ($last->catatan ?? ''));
+                });
+        }
 
         $headers = [
             'Nama Perangkat Daerah',
@@ -210,15 +274,39 @@ class LembarKerjaEvaluasiController extends Controller
             ];
 
             foreach ($domainOrder as $domain) {
-                $row = $package['by_domain'][(int) $domain['id']] ?? null;
-                if ($row) {
-                    $kode      = (string) ($row->domain->kode ?? '-');
-                    $nilai     = (string) ($row->nilai ?? '-');
-                    $penjelasanRaw = trim((string) ($row->penjelasan ?? ''));
-                    $penjelasan = $penjelasanRaw === '' ? '-' : $penjelasanRaw;
-                    $penilaianBps  = $row->penilaian_bps ? (string) $row->penilaian_bps : '-';
-                    $catatanBpsRaw = trim((string) ($row->catatan_bps ?? ''));
-                    $catatanBps    = $catatanBpsRaw === '' ? '-' : $catatanBpsRaw;
+                $hist = $package['domain_groups'][(int) $domain['id']] ?? null;
+                if ($hist && $hist->count() > 0) {
+                    /** @var \Illuminate\Support\Collection $hist */
+                    $base = $hist->where('status', '!=', 'revisi')->sortByDesc('id')->first();
+                    $rev1 = $hist->where('status', 'revisi')->where('revisi_round', 1)->sortByDesc('id')->first();
+                    $rev2 = $hist->where('status', 'revisi')->where('revisi_round', 2)->sortByDesc('id')->first();
+
+                    $kode  = (string) (($base?->domain->kode ?? null) ?: ($hist->first()?->domain->kode ?? '-') ?: '-');
+                    $nilai = (string) (($base?->nilai ?? null) ?: ($hist->sortByDesc('id')->first()?->nilai ?? '-'));
+
+                    $p0 = trim((string) ($base?->penjelasan ?? ''));
+                    $p1 = trim((string) ($rev1?->penjelasan ?? ''));
+                    $p2 = trim((string) ($rev2?->penjelasan ?? ''));
+
+                    $penjelasanParts = [];
+                    if ($p0 !== '') $penjelasanParts[] = "Sebelum: {$p0}";
+                    if ($p1 !== '') $penjelasanParts[] = "Revisi 1: {$p1}";
+                    if ($p2 !== '') $penjelasanParts[] = "Revisi 2: {$p2}";
+                    $penjelasan = $penjelasanParts ? implode("\n", $penjelasanParts) : '-';
+
+                    $lastBps = $hist->whereNotNull('penilaian_bps')->sortByDesc('updated_at')->first();
+                    $penilaianBps = $lastBps?->penilaian_bps ? (string) $lastBps->penilaian_bps : '-';
+
+                    $catEval = trim((string) ($hist->sortByDesc('updated_at')->first(fn ($r) => trim((string) ($r->catatan_bps ?? '')) !== '')?->catatan_bps ?? ''));
+                    $keyBase = $package['user_id'].'|'.$package['tahun_id'].'|'.$package['nama_kegiatan'].'|'.$package['nomor_rekomendasi'].'|'.(int) $domain['id'];
+                    $a1 = trim((string) ($alasanMap[$keyBase.'|1'] ?? ''));
+                    $a2 = trim((string) ($alasanMap[$keyBase.'|2'] ?? ''));
+
+                    $catParts = [];
+                    if ($catEval !== '') $catParts[] = "Catatan Evaluasi: {$catEval}";
+                    if ($a1 !== '') $catParts[] = "Alasan Revisi 1: {$a1}";
+                    if ($a2 !== '') $catParts[] = "Alasan Revisi 2: {$a2}";
+                    $catatanBps = $catParts ? implode("\n", $catParts) : '-';
 
                     $rowData[] = $kode;
                     $rowData[] = $nilai;
@@ -421,6 +509,58 @@ class LembarKerjaEvaluasiController extends Controller
     private function xmlEscape(string $value): string
     {
         return htmlspecialchars($value, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+    }
+
+    public function destroy(Request $request)
+    {
+        $userId = (int) $request->get('user_id', 0);
+        $tahunId = (int) $request->get('tahun_id', 0);
+        $namaKegiatan = (string) $request->get('nama_kegiatan', '');
+        $nomorRek = (string) $request->get('nomor_rekomendasi', '');
+
+        abort_if($userId <= 0 || $tahunId <= 0 || $namaKegiatan === '' || $nomorRek === '', 400, 'Parameter tidak lengkap');
+
+        DB::beginTransaction();
+        try {
+            // 1. Ambil semua LKE records dalam paket ini
+            $lkeRecords = LembarKerjaEvaluasi::query()
+                ->where('user_id', $userId)
+                ->where('tahun_id', $tahunId)
+                ->where('nama_kegiatan', $namaKegiatan)
+                ->where('nomor_rekomendasi', $nomorRek)
+                ->get();
+
+            foreach ($lkeRecords as $lke) {
+                // 2. Delete Bukti Dukung (files & database)
+                $buktiDukungs = \App\Models\BuktiDukung::where('lembar_kerja_id', $lke->id)->get();
+                foreach ($buktiDukungs as $bd) {
+                    if (Storage::disk('public')->exists($bd->file)) {
+                        Storage::disk('public')->delete($bd->file);
+                    }
+                    $bd->delete();
+                }
+
+                // 3. Delete Revisi Requests
+                \App\Models\LkeRevisiRequest::where('revised_lke_id', $lke->id)
+                    ->orWhere(function($q) use ($lke) {
+                        $q->where('user_id', $lke->user_id)
+                          ->where('tahun_id', $lke->tahun_id)
+                          ->where('domain_id', $lke->domain_id)
+                          ->where('nama_kegiatan', $lke->nama_kegiatan)
+                          ->where('nomor_rekomendasi', $lke->nomor_rekomendasi);
+                    })
+                    ->delete();
+
+                // 4. Delete the LKE record itself
+                $lke->delete();
+            }
+
+            DB::commit();
+            return back()->with('success', 'Paket LKE Berhasil Dihapus Beserta File Terkait.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Gagal menghapus LKE: ' . $e->getMessage());
+        }
     }
 
     private function buildZipBinary(array $entries): string

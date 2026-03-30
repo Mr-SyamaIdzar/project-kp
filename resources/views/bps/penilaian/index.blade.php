@@ -35,6 +35,12 @@
         @endforeach
       </select>
     </div>
+    <div class="w-full sm:w-auto sm:flex-1 min-w-0">
+      <select name="sort_opd" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all">
+        <option value="asc" {{ ($sortOpd ?? 'asc') === 'asc' ? 'selected' : '' }}>Urut OPD: A → Z</option>
+        <option value="desc" {{ ($sortOpd ?? 'asc') === 'desc' ? 'selected' : '' }}>Urut OPD: Z → A</option>
+      </select>
+    </div>
     <div class="flex flex-wrap gap-2 shrink-0">
       <button class="px-3 py-2 bg-transparent border border-(--border-strong) text-(--text) rounded-xl hover:bg-white/5 transition-colors flex items-center gap-2 text-xs md:text-sm" type="submit">
         <i class="bi bi-funnel"></i> Terapkan
@@ -60,6 +66,7 @@
         <th class="p-4">User</th>
         <th class="p-4 min-w-55">Nama Kegiatan</th>
         <th class="p-4 w-56">Nomor Rekomendasi</th>
+        <th class="p-4 w-44">Status</th>
         <th class="p-4 w-64">Ringkasan</th>
         <th class="p-4 w-32 text-center">Aksi</th>
       </tr>
@@ -72,6 +79,13 @@
           $createdYear = $row->package_created_at
             ? \Illuminate\Support\Carbon::parse($row->package_created_at)->format('Y')
             : '-';
+
+          $scored = (int)($row->cnt_scored ?? 0);
+          $domainsTotal = (int)($totalDomains ?? 0);
+          $status = 'none';
+          if ($scored <= 0) $status = 'none';
+          elseif ($domainsTotal > 0 && $scored >= $domainsTotal) $status = 'done';
+          else $status = 'progress';
         @endphp
         <tr class="hover:bg-black/5 transition-colors">
           <td class="p-4">{{ ($rows->currentPage()-1)*$rows->perPage() + $loop->iteration }}</td>
@@ -86,6 +100,25 @@
           <td class="p-4 font-semibold whitespace-normal max-w-85 wrap-break-word">{{ $row->nama_kegiatan }}</td>
 
           <td class="p-4 font-mono text-xs md:text-sm whitespace-normal max-w-85 wrap-break-word">{{ $row->nomor_rekomendasi }}</td>
+
+          <td class="p-4">
+            @if($status === 'done')
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 whitespace-nowrap">
+                <i class="bi bi-check-circle-fill"></i> Done
+              </span>
+              <div class="text-[10px] text-(--muted) mt-1">Dinilai {{ $scored }}/{{ $domainsTotal }}</div>
+            @elseif($status === 'progress')
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-bold bg-amber-500/10 border border-amber-500/30 text-amber-600 whitespace-nowrap">
+                <i class="bi bi-hourglass-split"></i> Onprogress
+              </span>
+              <div class="text-[10px] text-(--muted) mt-1">Dinilai {{ $scored }}/{{ $domainsTotal }}</div>
+            @else
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-bold bg-slate-500/10 border border-slate-500/30 text-slate-600 whitespace-nowrap">
+                <i class="bi bi-dot"></i> Belum dinilai
+              </span>
+              <div class="text-[10px] text-(--muted) mt-1">Dinilai 0/{{ $domainsTotal }}</div>
+            @endif
+          </td>
 
           <td class="p-4">
             <div class="flex flex-wrap gap-2">
@@ -115,7 +148,7 @@
         </tr>
       @empty
         <tr>
-          <td colspan="6" class="p-8 text-center text-(--muted)">Belum ada data.</td>
+          <td colspan="7" class="p-8 text-center text-(--muted)">Belum ada data.</td>
         </tr>
       @endforelse
     </tbody>

@@ -95,8 +95,15 @@ class UserController extends Controller
             return back()->with('failed', 'Tidak bisa menghapus akun yang sedang login.');
         }
 
-        $user->delete();
-        return back()->with('success', 'User berhasil dihapus.');
+        try {
+            $user->delete();
+            return back()->with('success', 'User berhasil dihapus.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($e->getCode() == '23000') {
+                return back()->with('failed', 'User ini tidak dapat dihapus karena sedang digunakan (berelasi) dengan data lainnya.');
+            }
+            return back()->with('failed', 'Gagal menghapus user: ' . $e->getMessage());
+        }
     }
 
 

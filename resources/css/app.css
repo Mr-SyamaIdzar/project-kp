@@ -109,6 +109,17 @@
     min-height: 100vh;
     overflow-x: hidden;
   }
+
+  /*
+    `.scroll-mt-header` dipakai bersama `window.scrollTo()` pada halaman berbasis accordion
+    (OPD isi LKE / OPD riwayat / BPS penilaian / Admin detail) agar scroll berhenti sedikit
+    di bawah header sticky.
+
+    JS memakai offset 110px, sedangkan CSS ini 100px (offset minimum). Jaga nilai JS >= CSS.
+  */
+  .scroll-mt-header {
+    scroll-margin-top: 100px;
+  }
 }
 
 @layer components {

@@ -63,7 +63,7 @@
       </div>
 
       <div class="mb-4 flex items-center">
-        <label class="form-label m-0 md:min-w-40 shrink-0 font-semibold">Nama Lengkap</label>
+        <label class="form-label m-0 md:min-w-40 shrink-0 font-semibold">Nama Instansi</label>
         <div class="grow max-w-md w-full ml-4">
           <input type="text" class="form-control w-full @error('nama') is-invalid @enderror" name="nama" value="{{ old('nama', $user->nama) }}" required />
           @error('nama')

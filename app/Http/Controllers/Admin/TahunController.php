@@ -57,7 +57,14 @@ class TahunController extends Controller
 
     public function destroy(Tahun $tahun)
     {
-        $tahun->delete();
-        return back()->with('success', 'Tahun berhasil dihapus.');
+        try {
+            $tahun->delete();
+            return back()->with('success', 'Tahun berhasil dihapus.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($e->getCode() == '23000') {
+                return back()->with('failed', 'Tahun ini tidak dapat dihapus karena sedang digunakan (berelasi) dengan data lainnya.');
+            }
+            return back()->with('failed', 'Gagal menghapus tahun: ' . $e->getMessage());
+        }
     }
 }

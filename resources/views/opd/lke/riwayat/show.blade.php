@@ -8,6 +8,13 @@
 
 @section('content')
 
+{{-- 
+  Dokumentasi (OPD Riwayat LKE - Detail Paket):
+  - Halaman ini bersifat read-only kecuali untuk indikator yang sedang diminta revisi oleh BPS (`canReviseDomainIds`).
+  - Revisi OPD dibatasi: hanya `penjelasan` dan `bukti dukung` yang boleh berubah; tingkat/kriteria tetap mengikuti baseline.
+  - Panel histori menampilkan: Sebelum / Revisi 1 / Revisi 2 (jika ada) agar OPD & BPS punya konteks perubahan.
+  - Jika BPS sudah finalisasi paket (`isLockedBps=1`), semua aksi revisi dinonaktifkan (UI + server-side di controller).
+--}}
 <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
   <div>
     <div class="font-bold text-lg md:text-xl text-(--text)">Detail Riwayat LKE</div>
@@ -22,15 +29,15 @@
   <div class="grid grid-cols-2 md:grid-cols-12 gap-4">
     <div class="md:col-span-3">
       <div class="text-[10px] md:text-xs uppercase tracking-wide text-(--muted) font-semibold">Tahun</div>
-      <div class="text-(--text) font-bold mt-1 break-words">{{ $tahun->tahun }}</div>
+      <div class="text-(--text) font-bold mt-1 wrap-break-word">{{ $tahun->tahun }}</div>
     </div>
     <div class="md:col-span-3">
       <div class="text-[10px] md:text-xs uppercase tracking-wide text-(--muted) font-semibold">Nomor Rekomendasi</div>
-      <div class="text-(--text) font-bold mt-1 break-words font-mono text-xs md:text-sm">{{ $nomorRek }}</div>
+      <div class="text-(--text) font-bold mt-1 wrap-break-word font-mono text-xs md:text-sm">{{ $nomorRek }}</div>
     </div>
     <div class="md:col-span-6 col-span-2">
       <div class="text-[10px] md:text-xs uppercase tracking-wide text-(--muted) font-semibold">Nama Kegiatan</div>
-      <div class="text-(--text) font-bold mt-1 break-words">{{ $namaKegiatan }}</div>
+      <div class="text-(--text) font-bold mt-1 wrap-break-word">{{ $namaKegiatan }}</div>
     </div>
   </div>
 </div>
@@ -40,10 +47,20 @@
     BPS meminta revisi pada <b class="font-bold">{{ count($canReviseDomainIds) }}</b> indikator.
   </div>
 @else
-  <div class="bg-cyan-500/10 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 rounded-xl p-4 mb-6 flex items-center gap-2">
-    <i class="bi bi-info-circle text-base md:text-lg"></i>
-    Belum ada indikator yang diminta revisi oleh BPS untuk paket ini.
-  </div>
+  @if(($isLockedBps ?? false))
+    <div class="bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 rounded-xl p-4 mb-6 flex items-start gap-3">
+      <i class="bi bi-lock-fill text-base md:text-lg mt-0.5 shrink-0"></i>
+      <div>
+        <div class="font-semibold mb-0.5">Penilaian sudah difinalisasi & dikunci oleh BPS</div>
+        OPD tidak dapat mengirim revisi lagi untuk paket ini, walaupun masih ada permintaan revisi yang sebelumnya belum diselesaikan.
+      </div>
+    </div>
+  @else
+    <div class="bg-cyan-500/10 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 rounded-xl p-4 mb-6 flex items-center gap-2">
+      <i class="bi bi-info-circle text-base md:text-lg"></i>
+      Belum ada indikator yang diminta revisi oleh BPS untuk paket ini.
+    </div>
+  @endif
 @endif
 
 <div class="space-y-3" id="indikatorAccordion">
@@ -55,6 +72,7 @@
       $revisedReq = $revisedRequestMap[$d->id] ?? null;
       $revisedLke = $revisedReq?->revisedLke;
       $isTargetRevisi = in_array((int)$d->id, $canReviseDomainIds, true);
+      $activeRound = (int) (($activeRevisiRoundMap[$d->id] ?? 0) ?: 0);
 
       $hasK = (bool)($lke?->kriteria_id);
       $hasP = strlen(trim((string)($lke?->penjelasan ?? ''))) > 0;
@@ -80,7 +98,7 @@
         <div class="flex items-center gap-2 flex-wrap md:flex-nowrap">
           @if($isTargetRevisi)
             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] md:text-xs font-semibold bg-red-500/10 text-red-600 border border-red-500/30 whitespace-nowrap">
-              Perlu Revisi
+              Perlu Revisi{{ $activeRound ? ' ('.$activeRound.')' : '' }}
             </span>
           @endif
           @if($status === 'done')
@@ -137,68 +155,118 @@
             <div class="bg-black/5 dark:bg-white/5 border border-(--border-strong) rounded-xl p-4 text-(--text) text-xs md:text-sm leading-relaxed whitespace-pre-wrap">@if($lke && trim((string)$lke->penjelasan) !== ''){{ $lke->penjelasan }}@else<span class="text-(--muted) italic">Belum ada penjelasan.</span>@endif</div>
           </div>
 
-          <!-- Catatan BPS -->
-          @if($lke && $lke->is_revisi_bps && trim((string)$lke->catatan_bps) !== '')
+          <!-- Alasan Revisi dari BPS (per round) -->
+          @php
+            $alasanR1 = trim((string)($revisiCatatanMap[$d->id][1] ?? ''));
+            $alasanR2 = trim((string)($revisiCatatanMap[$d->id][2] ?? ''));
+          @endphp
+          @if($alasanR1 !== '' || $alasanR2 !== '')
             <div class="mb-5">
-              <div class="text-[10px] md:text-xs font-semibold text-amber-600 dark:text-amber-500 mb-2 uppercase tracking-wide flex items-center gap-1.5"><i class="bi bi-chat-square-text"></i> Catatan Revisi dari BPS</div>
-              <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-amber-800 dark:text-amber-200 text-xs md:text-sm leading-relaxed whitespace-pre-wrap">{{ $lke->catatan_bps }}</div>
+              <div class="text-[10px] md:text-xs font-semibold text-amber-600 dark:text-amber-500 mb-2 uppercase tracking-wide flex items-center gap-1.5"><i class="bi bi-chat-square-text"></i> Alasan Revisi dari BPS</div>
+              <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-amber-800 dark:text-amber-200 text-xs md:text-sm leading-relaxed whitespace-pre-wrap space-y-2">
+                @if($alasanR1 !== '')
+                  <div><b>Revisi 1:</b> {{ $alasanR1 }}</div>
+                @endif
+                @if($alasanR2 !== '')
+                  <div><b>Revisi 2:</b> {{ $alasanR2 }}</div>
+                @endif
+              </div>
             </div>
           @endif
 
-          <!-- File Sebelum Revisi -->
-          <div class="mb-5">
-            <div class="text-[10px] md:text-xs font-semibold text-(--muted) mb-2 uppercase tracking-wide">File Sebelum Revisi</div>
-            @if($beforeLke && $beforeLke->buktiDukung->count() > 0)
-              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                @foreach($beforeLke->buktiDukung as $f)
-                  <div class="flex items-start gap-3 p-3 bg-black/5 dark:bg-white/5 border border-(--border-strong) rounded-xl">
-                    <div class="w-10 h-10 rounded-lg bg-(--brand)/10 flex items-center justify-center text-(--brand) shrink-0">
-                      <i class="bi bi-file-earmark-text text-lg md:text-xl"></i>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                      <div class="text-xs md:text-sm font-semibold text-(--text) truncate mb-1" title="{{ $f->original_name ?: basename($f->file) }}">
-                        {{ $f->original_name ?: basename($f->file) }}
-                      </div>
-                      <a href="{{ asset('storage/' . $f->file) }}" target="_blank" rel="noopener" class="text-[10px] md:text-xs text-(--brand) hover:underline inline-flex items-center gap-1 font-medium">
-                        <i class="bi bi-box-arrow-up-right"></i> Lihat File
-                      </a>
-                    </div>
-                  </div>
-                @endforeach
-              </div>
-            @else
-              <div class="bg-black/5 dark:bg-white/5 border border-(--border-strong) rounded-xl p-4 text-(--text) text-xs md:text-sm italic">
-                <span class="text-(--muted)">Belum ada file pada data sebelumnya.</span>
-              </div>
-            @endif
-          </div>
+          <!-- Histori Penjelasan & Bukti Dukung (Sebelum/Revisi 1/Revisi 2) -->
+          @php
+            $hist = ($domainRecordsMap[$d->id] ?? collect());
+            $base = $hist->filter(fn($r) => (string)$r->status !== 'revisi')->sortByDesc('id')->first();
+            $rev1 = $hist->filter(fn($r) => (string)$r->status === 'revisi' && (int)($r->revisi_round ?? 0) === 1)->sortByDesc('id')->first();
+            $rev2 = $hist->filter(fn($r) => (string)$r->status === 'revisi' && (int)($r->revisi_round ?? 0) === 2)->sortByDesc('id')->first();
 
-          <!-- File Revisi Saat Ini -->
-          @if($revisedLke && $revisedLke->buktiDukung->count() > 0)
-            <div class="mb-5">
-              <div class="text-[10px] md:text-xs font-semibold text-(--muted) mb-2 uppercase tracking-wide">File Revisi Saat Ini</div>
-              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                @foreach($revisedLke->buktiDukung as $f)
-                  <div class="flex items-start gap-3 p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
-                    <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 shrink-0">
-                      <i class="bi bi-file-earmark-check text-lg md:text-xl"></i>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                      <div class="text-xs md:text-sm font-semibold text-(--text) truncate mb-1" title="{{ $f->original_name ?: basename($f->file) }}">
-                        {{ $f->original_name ?: basename($f->file) }}
-                      </div>
-                      <a href="{{ asset('storage/' . $f->file) }}" target="_blank" rel="noopener" class="text-[10px] md:text-xs text-emerald-600 hover:text-emerald-700 hover:underline inline-flex items-center gap-1 font-medium">
-                        <i class="bi bi-box-arrow-up-right"></i> Lihat File
-                      </a>
-                    </div>
+            $filesBase = $base ? $base->buktiDukung : collect();
+            $filesR1   = $rev1 ? $rev1->buktiDukung : collect();
+            $filesR2   = $rev2 ? $rev2->buktiDukung : collect();
+          @endphp
+
+          @if($base || $rev1 || $rev2)
+            <div class="mb-6">
+              <div class="text-[10px] md:text-xs font-semibold text-(--muted) mb-3 uppercase tracking-wide">Histori Revisi</div>
+              <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {{-- Sebelum --}}
+                <div class="bg-black/5 dark:bg-white/5 border border-(--border-strong) rounded-xl p-4 text-left">
+                  <div class="font-semibold text-(--text) text-xs md:text-sm mb-2 flex items-center gap-2">
+                    <i class="bi bi-clock-history text-(--muted)"></i> Sebelum Revisi
                   </div>
-                @endforeach
+                  <div class="text-[10px] md:text-xs text-(--muted) mb-2 uppercase tracking-wide">Penjelasan</div>
+                  <div class="text-xs md:text-sm text-(--text) whitespace-pre-wrap text-left!">
+                    {{ trim((string)($base?->penjelasan ?? '')) !== '' ? $base->penjelasan : '-' }}
+                  </div>
+                  <div class="mt-4 text-[10px] md:text-xs text-(--muted) mb-2 uppercase tracking-wide">Bukti Dukung</div>
+                  @if($filesBase && $filesBase->count() > 0)
+                    <div class="space-y-2">
+                      @foreach($filesBase as $f)
+                        <a class="block text-[10px] md:text-xs text-(--brand) hover:underline truncate"
+                           href="{{ asset('storage/' . $f->file) }}" target="_blank" rel="noopener">
+                          <i class="bi bi-box-arrow-up-right me-1"></i>{{ $f->original_name ?: basename($f->file) }}
+                        </a>
+                      @endforeach
+                    </div>
+                  @else
+                    <div class="text-[11px] text-(--muted) italic">-</div>
+                  @endif
+                </div>
+
+                {{-- Revisi 1 --}}
+                <div class="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 text-left">
+                  <div class="font-semibold text-(--text) text-xs md:text-sm mb-2 flex items-center gap-2">
+                    <i class="bi bi-arrow-return-left text-emerald-600"></i> Revisi 1
+                  </div>
+                  <div class="text-[10px] md:text-xs text-(--muted) mb-2 uppercase tracking-wide">Penjelasan</div>
+                  <div class="text-xs md:text-sm text-(--text) whitespace-pre-wrap text-left!">
+                    {{ trim((string)($rev1?->penjelasan ?? '')) !== '' ? $rev1->penjelasan : '-' }}
+                  </div>
+                  <div class="mt-4 text-[10px] md:text-xs text-(--muted) mb-2 uppercase tracking-wide">Bukti Dukung</div>
+                  @if($filesR1 && $filesR1->count() > 0)
+                    <div class="space-y-2">
+                      @foreach($filesR1 as $f)
+                        <a class="block text-[10px] md:text-xs text-emerald-600 hover:text-emerald-700 hover:underline truncate"
+                           href="{{ asset('storage/' . $f->file) }}" target="_blank" rel="noopener">
+                          <i class="bi bi-box-arrow-up-right me-1"></i>{{ $f->original_name ?: basename($f->file) }}
+                        </a>
+                      @endforeach
+                    </div>
+                  @else
+                    <div class="text-[11px] text-(--muted) italic">-</div>
+                  @endif
+                </div>
+
+                {{-- Revisi 2 --}}
+                <div class="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 text-left">
+                  <div class="font-semibold text-(--text) text-xs md:text-sm mb-2 flex items-center gap-2">
+                    <i class="bi bi-arrow-return-left text-emerald-600"></i> Revisi 2
+                  </div>
+                  <div class="text-[10px] md:text-xs text-(--muted) mb-2 uppercase tracking-wide">Penjelasan</div>
+                  <div class="text-xs md:text-sm text-(--text) whitespace-pre-wrap text-left!">
+                    {{ trim((string)($rev2?->penjelasan ?? '')) !== '' ? $rev2->penjelasan : '-' }}
+                  </div>
+                  <div class="mt-4 text-[10px] md:text-xs text-(--muted) mb-2 uppercase tracking-wide">Bukti Dukung</div>
+                  @if($filesR2 && $filesR2->count() > 0)
+                    <div class="space-y-2">
+                      @foreach($filesR2 as $f)
+                        <a class="block text-[10px] md:text-xs text-emerald-600 hover:text-emerald-700 hover:underline truncate"
+                           href="{{ asset('storage/' . $f->file) }}" target="_blank" rel="noopener">
+                          <i class="bi bi-box-arrow-up-right me-1"></i>{{ $f->original_name ?: basename($f->file) }}
+                        </a>
+                      @endforeach
+                    </div>
+                  @else
+                    <div class="text-[11px] text-(--muted) italic">-</div>
+                  @endif
+                </div>
               </div>
             </div>
           @endif
 
           <!-- Form Revisi -->
-          @if($isTargetRevisi)
+          @if($isTargetRevisi && !($lke?->is_locked_bps ?? false))
             @php
               $oldForThisDomain = (int) old('domain_id', 0) === (int) $d->id;
               $selectedKriteriaId = $oldForThisDomain
@@ -221,35 +289,26 @@
                     <i class="bi bi-pencil-square"></i> Form Revisi Indikator
                 </div>
 
-                <!-- Pilih Kriteria Baru -->
+                <!-- Kriteria (tidak dapat diubah saat revisi) -->
                 <div class="mb-5">
-                  <label class="block text-xs md:text-sm font-semibold text-(--text) mb-2">Pilih Kriteria Baru <span class="text-red-500">*</span></label>
-                  <div class="overflow-hidden rounded-xl border border-(--border-strong) w-full block bg-(--panel) shadow-sm">
-                    <table class="w-full text-xs md:text-sm text-left border-collapse m-0">
-                      <thead class="bg-black/5 dark:bg-white/5 text-(--muted) font-semibold border-b border-(--border-strong)">
-                        <tr>
-                          <th class="p-3 w-32 border-r border-(--border-strong) text-center">Tingkat</th>
-                          <th class="p-3">Kriteria</th>
-                        </tr>
-                      </thead>
-                      <tbody class="divide-y divide-(--border-strong)">
-                        @foreach($d->kriterias as $k)
-                          @php $active = $selectedKriteriaId === (int) $k->id; @endphp
-                          <tr class="transition-colors hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer kriteria-row-selectable {{ $active ? 'bg-amber-500/10 hover:bg-amber-500/20' : '' }}"
-                              onclick="selectRevisiKriteria({{ $d->id }}, {{ $k->id }})"
-                              id="revisi_row_{{ $d->id }}_{{ $k->id }}">
-                            <td class="p-3 border-r border-(--border-strong) text-center align-middle">
-                              <label class="inline-flex items-center justify-center gap-2 cursor-pointer w-full h-full m-0 pointer-events-none">
-                                <input type="radio" name="kriteria_id" value="{{ $k->id }}" id="revisi_radio_{{ $d->id }}_{{ $k->id }}" {{ $active ? 'checked' : '' }} required class="w-4 h-4 text-amber-500 border-(--border-strong) focus:ring-amber-500 bg-transparent cursor-pointer pointer-events-auto">
-                                <span class="font-bold text-base md:text-lg {{ $active ? 'text-amber-600' : 'text-(--text)' }}">{{ $k->tingkat }}</span>
-                              </label>
-                            </td>
-                            <td class="p-3 align-middle text-(--text) {{ $active ? 'font-medium' : '' }}">{{ $k->kriteria }}</td>
-                          </tr>
-                        @endforeach
-                      </tbody>
-                    </table>
+                  <label class="block text-xs md:text-sm font-semibold text-(--text) mb-2">Kriteria (Terkunci)</label>
+                  <input type="hidden" name="kriteria_id" value="{{ $selectedKriteriaId }}">
+                  <div class="bg-(--panel) border border-(--border-strong) rounded-xl p-4 text-xs md:text-sm text-(--text)">
+                    @php
+                      $selectedK = $d->kriterias->firstWhere('id', $selectedKriteriaId);
+                    @endphp
+                    @if($selectedK)
+                      <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-bold bg-amber-500/10 border border-amber-500/30 text-amber-600">
+                          Tingkat {{ $selectedK->tingkat }}
+                        </span>
+                        <span class="font-medium">{{ $selectedK->kriteria }}</span>
+                      </div>
+                    @else
+                      <span class="text-(--muted)">Kriteria belum dipilih.</span>
+                    @endif
                   </div>
+                  <div class="text-[10px] text-(--muted) mt-2"><i class="bi bi-info-circle"></i> Saat revisi, OPD hanya dapat mengubah penjelasan dan menambah bukti dukung.</div>
                 </div>
 
                 <!-- Penjelasan Revisi -->
@@ -290,6 +349,16 @@
                 </div>
               </form>
             </div>
+          @elseif(isset($isTargetRevisi) && $isTargetRevisi && ($lke?->is_locked_bps ?? false))
+            <div class="mt-6 pt-6 border-t border-(--border-strong)">
+              <div class="bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 rounded-xl p-4 flex items-center gap-3">
+                <i class="bi bi-shield-lock-fill text-xl"></i>
+                <div>
+                  <div class="font-bold">Penilaian Telah Difinalisasi</div>
+                  BPS telah mengunci penilaian ini. Anda tidak dapat melakukan revisi lagi untuk indikator ini.
+                </div>
+              </div>
+            </div>
           @endif
 
         </div>
@@ -317,17 +386,28 @@
       activeContent.classList.remove('hidden');
       if (icon) icon.classList.add('rotate-180');
 
-      // Scroll ke header accordion yang baru dibuka
-      const header = activeContent.previousElementSibling;
-      if (header) {
+      // Scroll ke wrapper parent agar posisi POV stabil
+      const card = activeContent.parentElement;
+      if (card) {
         setTimeout(() => {
-          header.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 50);
+          card.classList.add('scroll-mt-header');
+          const rect = card.getBoundingClientRect();
+          const top = window.scrollY + rect.top - 110; // offset header
+          window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+        }, 500);
       }
     }
   }
 
   // Row Selection Logic for Revisi
+  function selectRevisiKriteriaFromRow(rowEl) {
+    if (!rowEl) return;
+    const domainId = parseInt(rowEl.getAttribute('data-domain-id') || '', 10);
+    const kriteriaId = parseInt(rowEl.getAttribute('data-kriteria-id') || '', 10);
+    if (!Number.isFinite(domainId) || !Number.isFinite(kriteriaId)) return;
+    selectRevisiKriteria(domainId, kriteriaId);
+  }
+
   function selectRevisiKriteria(domainId, kriteriaId) {
     document.querySelectorAll(`[id^="revisi_row_${domainId}_"]`).forEach((row) => {
       row.classList.remove('bg-amber-500/10', 'hover:bg-amber-500/20');

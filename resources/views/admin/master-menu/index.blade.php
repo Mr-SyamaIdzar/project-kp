@@ -138,6 +138,22 @@
 
           <div>
             <label class="block text-(--muted) text-xs md:text-sm mb-2 font-semibold">
+              Warna Card
+            </label>
+            <select name="warna"
+              class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-4 py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all">
+              @php $w = $inf->warna ?? 'neutral'; @endphp
+              <option value="neutral" {{ $w === 'neutral' ? 'selected' : '' }}>Netral</option>
+              <option value="blue" {{ $w === 'blue' ? 'selected' : '' }}>Biru</option>
+              <option value="red" {{ $w === 'red' ? 'selected' : '' }}>Merah</option>
+              <option value="amber" {{ $w === 'amber' ? 'selected' : '' }}>Kuning</option>
+              <option value="emerald" {{ $w === 'emerald' ? 'selected' : '' }}>Hijau</option>
+            </select>
+            <div class="text-[10px] text-(--muted) mt-1">Mengubah warna tampilan card Informasi di dashboard role {{ strtoupper($r) }}.</div>
+          </div>
+
+          <div>
+            <label class="block text-(--muted) text-xs md:text-sm mb-2 font-semibold">
               Isi Informasi <span class="text-red-500">*</span>
             </label>
             <textarea name="isi" id="isi-{{ $r }}" required rows="5"

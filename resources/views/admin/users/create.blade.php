@@ -34,7 +34,7 @@
       @csrf
 
       <div class="mb-4 flex items-center">
-        <label class="form-label m-0 md:min-w-[160px] flex-shrink-0 font-semibold">Nama Lengkap</label>
+        <label class="form-label m-0 md:min-w-[160px] flex-shrink-0 font-semibold">Nama Instansi</label>
         <div class="flex-grow max-w-md w-full ml-4">
           <input type="text" class="form-control w-full @error('nama') is-invalid @enderror" name="nama" value="{{ old('nama') }}" required />
           @error('nama')

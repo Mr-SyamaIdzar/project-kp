@@ -69,9 +69,14 @@
               <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold bg-white/5 border border-(--border-strong) text-(--text)">
                  <i class="bi bi-diagram-3 opacity-70"></i> Total: <b class="font-bold">{{ (int)($totalIndikator ?? $row->cnt_total) }}</b>
               </span>
-              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold border-none text-white {{ ($row->status_paket ?? 'final') === 'revisi' ? 'bg-red-500' : 'bg-emerald-500' }}">
-                <i class="bi {{ ($row->status_paket ?? 'final') === 'revisi' ? 'bi-exclamation-triangle' : 'bi-check-circle' }}"></i>
-                Status: <b class="font-bold">{{ ($row->status_paket ?? 'final') === 'revisi' ? 'Revisi' : 'Final' }}</b>
+              @php $sp = (string)($row->status_paket ?? 'final'); @endphp
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold border-none text-white
+                {{ $sp === 'locked' ? 'bg-blue-600' : ($sp === 'revisi' ? 'bg-red-500' : 'bg-emerald-500') }}">
+                <i class="bi {{ $sp === 'locked' ? 'bi-shield-lock' : ($sp === 'revisi' ? 'bi-exclamation-triangle' : 'bi-check-circle') }}"></i>
+                Status:
+                <b class="font-bold">
+                  {{ $sp === 'locked' ? 'Final BPS (Dikunci)' : ($sp === 'revisi' ? 'Revisi' : 'Final') }}
+                </b>
               </span>
             </div>
           </td>

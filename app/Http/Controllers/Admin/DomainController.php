@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Domain;
+use App\Models\Indikator;
 use Illuminate\Http\Request;
 
 class DomainController extends Controller
@@ -12,7 +12,7 @@ class DomainController extends Controller
     {
         $q = trim((string) $request->get('q', ''));
 
-        $domains = Domain::query()
+        $domains = Indikator::query()
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($sub) use ($q) {
                     $sub->where('kode', 'like', "%{$q}%")
@@ -43,17 +43,17 @@ class DomainController extends Controller
             'nama_indikator'=> ['required','string','max:250'],
         ]);
 
-        Domain::create($validated);
+        Indikator::create($validated);
 
         return redirect()->route('domains.index')->with('success', 'Domain berhasil ditambahkan.');
     }
 
-    public function edit(Domain $domain)
+    public function edit(Indikator $domain)
     {
         return view('admin.domains.edit', compact('domain'));
     }
 
-    public function update(Request $request, Domain $domain)
+    public function update(Request $request, Indikator $domain)
     {
         $validated = $request->validate([
             'kode'          => ['required','integer','min:1','max:999999'],
@@ -67,9 +67,16 @@ class DomainController extends Controller
         return redirect()->route('domains.index')->with('success', 'Domain berhasil diupdate.');
     }
 
-    public function destroy(Domain $domain)
+    public function destroy(Indikator $domain)
     {
-        $domain->delete();
-        return back()->with('success', 'Domain berhasil dihapus.');
+        try {
+            $domain->delete();
+            return back()->with('success', 'Domain berhasil dihapus.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($e->getCode() == '23000') {
+                return back()->with('failed', 'Domain/Indikator ini tidak dapat dihapus karena sedang digunakan (berelasi) dengan data lainnya.');
+            }
+            return back()->with('failed', 'Gagal menghapus domain: ' . $e->getMessage());
+        }
     }
 }

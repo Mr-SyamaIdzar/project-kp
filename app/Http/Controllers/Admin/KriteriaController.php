@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Domain;
+use App\Models\Indikator;
 use App\Models\Kriteria;
 use Illuminate\Http\Request;
 
@@ -37,7 +37,7 @@ class KriteriaController extends Controller
     public function create()
     {
         // dropdown indikator dari domains
-        $domains = Domain::orderBy('kode')->get();
+        $domains = Indikator::orderBy('kode')->get();
         return view('admin.kriterias.create', compact('domains'));
     }
 
@@ -77,7 +77,7 @@ class KriteriaController extends Controller
 
     public function edit(Kriteria $kriteria)
     {
-        $domains = Domain::orderBy('kode')->get();
+        $domains = Indikator::orderBy('kode')->get();
         return view('admin.kriterias.edit', compact('kriteria', 'domains'));
     }
 
@@ -112,7 +112,14 @@ class KriteriaController extends Controller
 
     public function destroy(Kriteria $kriteria)
     {
-        $kriteria->delete();
-        return back()->with('success', 'Kriteria berhasil dihapus.');
+        try {
+            $kriteria->delete();
+            return back()->with('success', 'Kriteria berhasil dihapus.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($e->getCode() == '23000') {
+                return back()->with('failed', 'Kriteria ini tidak dapat dihapus karena sedang digunakan (berelasi) dengan data lainnya.');
+            }
+            return back()->with('failed', 'Gagal menghapus kriteria: ' . $e->getMessage());
+        }
     }
 }

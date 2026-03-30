@@ -3,29 +3,65 @@
 namespace App\Http\Controllers\OPD;
 
 use App\Http\Controllers\Controller;
-use App\Models\Domain;
+use App\Models\Indikator;
 use App\Models\Kriteria;
 use App\Models\LembarKerjaEvaluasi;
 use App\Models\OpdMenuSetting;
 use App\Models\Tahun;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class LembarKerjaEvaluasiController extends Controller
 {
+    /**
+     * Cek apakah paket LKE sudah dikunci oleh BPS (finalisasi penilaian).
+     *
+     * Paket diidentifikasi oleh (user_id, tahun_id, nama_kegiatan, nomor_rekomendasi).
+     * Jika locked, OPD tidak boleh melakukan perubahan apa pun (autosave/upload/finalize).
+     */
+    private function isBpsLockedPacket(int $userId, int $tahunId, string $namaKegiatan, string $nomorRekomendasi): bool
+    {
+        return LembarKerjaEvaluasi::query()
+            ->where('user_id', $userId)
+            ->where('tahun_id', $tahunId)
+            ->where('nama_kegiatan', $namaKegiatan)
+            ->where('nomor_rekomendasi', $nomorRekomendasi)
+            ->where('is_locked_bps', true)
+            ->exists();
+    }
+
     public function create(Request $request)
     {
-        $userId = auth()->id();
+        $userId = (int) (Auth::id() ?? 0);
 
         if (!$this->isMenuIsiLkeAvailable($userId)) {
             return view('opd.lke.unavailable');
         }
 
+        // Kebijakan bisnis: OPD hanya boleh membuat 1 aktivitas final per tahun kalender.
+        // (Draft masih boleh dibuat/diubah sampai difinalkan.)
+        $currentYear = now()->year;
+        $existingAnnualActivity = LembarKerjaEvaluasi::query()
+            ->where('user_id', $userId)
+            ->whereYear('created_at', $currentYear)
+            ->where('status', 'final') // Only block if already finalized
+            ->exists();
+
+        if ($existingAnnualActivity) {
+            // Jika sudah pernah buat di tahun ini, block akses ke menu isi
+            return view('opd.lke.unavailable', [
+                'reason' => 'Hanya bisa diisi 1 kali per tahun'
+            ]);
+        }
+        // -------------------------------------------------------
+
         $tahuns = Tahun::orderBy('tahun', 'desc')->get();
         $tahunId = (int) $request->get('tahun_id', 0);
         $namaKegiatan = trim((string) $request->get('nama_kegiatan', ''));
         $nomorRekomendasi = trim((string) $request->get('nomor_rekomendasi', ''));
+
         $hasExplicitTahun = $request->query->has('tahun_id');
         $hasExplicitNama = $request->query->has('nama_kegiatan');
         $hasExplicitNomor = $request->query->has('nomor_rekomendasi');
@@ -74,7 +110,7 @@ class LembarKerjaEvaluasiController extends Controller
             $tahunId = (int) ($lastDraftTahun ?: 0);
         }
 
-        $domains = Domain::with(['kriterias' => function ($q) {
+        $domains = Indikator::with(['kriterias' => function ($q) {
             $q->orderBy('tingkat');
         }])->orderBy('kode')->get();
 
@@ -111,12 +147,18 @@ class LembarKerjaEvaluasiController extends Controller
             'tahunId' => $tahunId,
             'prefillUmum' => $prefillUmum,
             'draftMap' => $draftMap,
+            'isActivityLocked' => (bool)$existingAnnualActivity,
+            'canFillDataUmum' => true,
+            'canFillIndikator' => true,
+            'accessBlocked' => false,
+            'accessBlockReason' => null,
+            'initialUmumComplete' => ($tahunId > 0 && $namaKegiatan !== '' && $nomorRekomendasi !== ''),
         ]);
     }
 
     public function autosave(Request $request)
     {
-        $userId = auth()->id();
+        $userId = (int) (Auth::id() ?? 0);
         if (!$this->isMenuIsiLkeAvailable($userId)) {
             return $this->accessDenied('Menu Isi Lembar Kerja Evaluasi Tidak ada');
         }
@@ -129,6 +171,49 @@ class LembarKerjaEvaluasiController extends Controller
             'kriteria_id'      => ['nullable', 'integer', 'exists:kriterias,id'],
             'penjelasan'       => ['nullable', 'string'],
         ]);
+
+        if ($this->isBpsLockedPacket(
+            $userId,
+            (int) $request->tahun_id,
+            (string) $request->nama_kegiatan,
+            (string) $request->nomor_rekomendasi
+        )) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Penilaian telah difinalisasi oleh BPS. Paket ini terkunci dan tidak dapat diubah lagi.',
+            ], 403);
+        }
+
+        // RESTRICTION: One finalized activity per year
+        $finalizedActivity = LembarKerjaEvaluasi::query()
+            ->where('user_id', $userId)
+            ->whereYear('created_at', now()->year)
+            ->where('status', 'final')
+            ->exists();
+
+        if ($finalizedActivity) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'LKE tahun ini sudah difinalisasi. Anda tidak dapat mengubah data lagi.',
+            ], 403);
+        }
+
+        // RESTRICTION: One activity at a time (prevent multiple drafts)
+        $existingOtherActivity = LembarKerjaEvaluasi::query()
+            ->where('user_id', $userId)
+            ->whereYear('created_at', now()->year)
+            ->where(function ($q) use ($request) {
+                $q->where('nama_kegiatan', '!=', (string) $request->nama_kegiatan)
+                  ->orWhere('nomor_rekomendasi', '!=', (string) $request->nomor_rekomendasi);
+            })
+            ->first();
+
+        if ($existingOtherActivity) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Anda sudah memiliki kegiatan lain (' . $existingOtherActivity->nama_kegiatan . '). Setiap OPD hanya diperbolehkan input 1 kegiatan per tahun.',
+            ], 422);
+        }
 
         // Fetch kriteria ONCE (replaces 2 separate queries: exists + value)
         $kriteria = null;
@@ -189,7 +274,7 @@ class LembarKerjaEvaluasiController extends Controller
 
     public function uploadBukti(Request $request)
     {
-        $userId = auth()->id();
+        $userId = (int) (Auth::id() ?? 0);
         if (!$this->isMenuIsiLkeAvailable($userId)) {
             return $this->accessDenied('Menu Isi Lembar Kerja Evaluasi Tidak ada');
         }
@@ -197,6 +282,13 @@ class LembarKerjaEvaluasiController extends Controller
         $lke = LembarKerjaEvaluasi::where('id', $request->lke_id)
             ->where('user_id', $userId)
             ->firstOrFail();
+
+        if ((bool) $lke->is_locked_bps) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Penilaian telah difinalisasi oleh BPS. Paket ini terkunci dan tidak dapat diubah lagi.',
+            ], 403);
+        }
 
         $request->validate([
             'lke_id' => ['required', 'integer', 'exists:lembar_kerja_evaluasi,id'],
@@ -234,7 +326,7 @@ class LembarKerjaEvaluasiController extends Controller
 
     public function finalize(Request $request)
     {
-        $userId = auth()->id();
+        $userId = (int) (Auth::id() ?? 0);
         if (!$this->isMenuIsiLkeAvailable($userId)) {
             return $this->accessDenied('Menu Isi Lembar Kerja Evaluasi Tidak ada');
         }
@@ -246,6 +338,13 @@ class LembarKerjaEvaluasiController extends Controller
         $lke = LembarKerjaEvaluasi::where('id', $request->lke_id)
             ->where('user_id', $userId)
             ->firstOrFail();
+
+        if ((bool) $lke->is_locked_bps) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Penilaian telah difinalisasi oleh BPS. Paket ini terkunci dan tidak dapat diubah lagi.',
+            ], 403);
+        }
 
         if ($lke->status === 'final') {
             return response()->json(['ok' => true, 'message' => 'Sudah final']);
@@ -277,7 +376,12 @@ class LembarKerjaEvaluasiController extends Controller
 
     public function files(LembarKerjaEvaluasi $lke)
     {
-        abort_if($lke->user_id !== auth()->id(), 403);
+        // Allow access if owner, OR if role is admin or bps
+        $user = Auth::user();
+        abort_if(
+            $lke->user_id !== $user->id && !in_array($user->role, ['admin', 'bps']), 
+            403
+        );
 
         $files = $lke->buktiDukung()
             ->latest()
@@ -296,7 +400,7 @@ class LembarKerjaEvaluasiController extends Controller
 
     public function finalizeAll(Request $request)
     {
-        $userId = auth()->id();
+        $userId = (int) (Auth::id() ?? 0);
         if (!$this->isMenuIsiLkeAvailable($userId)) {
             return $this->accessDenied('Menu Isi Lembar Kerja Evaluasi Tidak ada');
         }
@@ -306,6 +410,20 @@ class LembarKerjaEvaluasiController extends Controller
             'nama_kegiatan'     => ['nullable', 'string', 'max:250'],
             'nomor_rekomendasi' => ['nullable', 'string', 'max:255'],
         ]);
+
+        // RESTRICTION: One finalized activity per year
+        $finalizedActivityExists = LembarKerjaEvaluasi::query()
+            ->where('user_id', $userId)
+            ->whereYear('created_at', now()->year)
+            ->where('status', 'final')
+            ->exists();
+
+        if ($finalizedActivityExists) {
+             return response()->json([
+                'ok' => false,
+                'message' => 'Anda sudah memfinalisasi LKE untuk tahun ini. Tidak dapat memproses finalisasi lagi.',
+            ], 403);
+        }
 
         // Query hanya untuk paket tertentu milik user ini.
         $query = LembarKerjaEvaluasi::where('user_id', $userId)
@@ -317,6 +435,13 @@ class LembarKerjaEvaluasiController extends Controller
         }
         if ($request->filled('nomor_rekomendasi')) {
             $query->where('nomor_rekomendasi', (string) $request->nomor_rekomendasi);
+        }
+
+        if ((clone $query)->where('is_locked_bps', true)->exists()) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Penilaian telah difinalisasi oleh BPS. Paket ini terkunci dan tidak dapat diubah lagi.',
+            ], 403);
         }
 
         // Hanya ubah yang masih draft atau revisi → final dalam satu UPDATE (tanpa loop PHP).

@@ -9,7 +9,8 @@
   $accessBlocked = (bool)($accessBlocked ?? false);
   $accessBlockReason = $accessBlockReason ?? null;
   $readOnlyAll = !$canFillIndikator;
-  $dataUmumLocked = !$canFillDataUmum || $readOnlyAll;
+  $isActivityLocked = (bool)($isActivityLocked ?? false);
+  $dataUmumLocked = !$canFillDataUmum || $readOnlyAll || $isActivityLocked;
   $indikatorLocked = $readOnlyAll || $accessBlocked;
   $initialUmumComplete = $canFillDataUmum
     ? (trim((string)($prefillUmum['nama_kegiatan'] ?? '')) !== ''
@@ -17,6 +18,35 @@
       && trim((string)($prefillUmum['tahun_id'] ?? '')) !== '')
     : (trim((string)($prefillUmum['tahun_id'] ?? '')) !== '');
   $indikatorInputLocked = $indikatorLocked || !$initialUmumComplete;
+
+  /*
+    Dokumentasi (OPD Isi LKE):
+    - Halaman ini merender UI, sedangkan seluruh interaksi (accordion, autosave, upload, finalisasi)
+      ada di `resources/js/opd/lke-create.js`.
+    - Blade mengirim "kontrak config" melalui `window.LKE_CREATE_CONFIG` agar JS tidak perlu hardcode URL/CSRF.
+    - `indikatorInputLocked` menjaga agar user wajib isi Data Umum (tahun/nama kegiatan/no rekomendasi) sebelum input indikator.
+    - Jika BPS sudah finalisasi paket (`is_locked_bps=1`), controller akan memblok semua endpoint write, dan UI menampilkan alasan blok.
+  */
+
+  // Config JSON untuk `resources/js/opd/lke-create.js` (disimpan sebagai HTML attribute; JS hanya parse).
+  $lkeCreateConfigJson = json_encode([
+    'autosaveUrl' => route('opd.lke.autosave'),
+    'uploadUrl' => route('opd.lke.upload'),
+    'filesUrl' => url('opd/lke/files'),
+    'finalizeUrl' => route('opd.lke.finalize'),
+    'finalizeAllUrl' => route('opd.lke.finalizeAll'),
+    'csrfToken' => csrf_token(),
+    'serverDrafts' => $draftMap ?? [],
+    'selectedTahun' => $tahunId ?? null,
+    'canFillDataUmum' => $canFillDataUmum,
+    'canFillIndikator' => $canFillIndikator,
+    'accessBlocked' => $accessBlocked,
+    'accessBlockReason' => $accessBlockReason,
+    'initialUmum' => $prefillUmum ?? [],
+    'initialUmumComplete' => $initialUmumComplete,
+    'authUserId' => auth()->id(),
+    'isActivityLocked' => $isActivityLocked,
+  ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 @endphp
 
 @section('content')
@@ -35,9 +65,16 @@
       <div class="font-bold text-base md:text-lg text-(--text)">Data Umum</div>
       <div class="text-(--muted) text-[10px] md:text-xs mt-1">Wajib diisi sebelum mengisi indikator.</div>
     </div>
-    <span id="umumStatusBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold whitespace-nowrap {{ $indikatorInputLocked ? 'bg-slate-500/10 text-slate-600 border border-slate-500/30' : 'bg-amber-500/10 text-amber-600 border-amber-500/30' }}">
-      {{ $indikatorLocked ? 'Terkunci Admin' : ($indikatorInputLocked ? 'Isi Data Umum Dulu' : 'Auto Save Aktif') }}
-    </span>
+    <div class="flex items-center gap-2">
+      @if($isActivityLocked)
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold bg-blue-500/10 text-blue-600 border border-blue-500/30 whitespace-nowrap">
+          <i class="bi bi-info-circle"></i> Paket Tahun {{ $prefillUmum['tahun_id'] ? $tahuns->find($prefillUmum['tahun_id'])->tahun : '' }}
+        </span>
+      @endif
+      <span id="umumStatusBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold whitespace-nowrap {{ $indikatorInputLocked ? 'bg-slate-500/10 text-slate-600 border border-slate-500/30' : 'bg-amber-500/10 text-amber-600 border-amber-500/30' }}">
+        {{ $indikatorLocked ? 'Terkunci Admin' : ($indikatorInputLocked ? 'Isi Data Umum Dulu' : 'Auto Save Aktif') }}
+      </span>
+    </div>
   </div>
 
   <div class="p-5">
@@ -55,13 +92,19 @@
                placeholder="Contoh: Penyusunan SOP ..." maxlength="250"
                {{ $dataUmumLocked ? 'readonly' : '' }}>
         @if($dataUmumLocked)
-          <div class="text-[10px] md:text-xs text-(--muted) mt-1">Data Umum dikunci oleh admin.</div>
+          <div class="text-[10px] md:text-xs text-(--muted) mt-1">
+            @if($isActivityLocked)
+              Terkunci karena sudah ada data di tahun ini.
+            @else
+              Data Umum dikunci oleh admin.
+            @endif
+          </div>
         @endif
       </div>
 
       <div class="md:col-span-2">
         <label class="block text-xs md:text-sm font-semibold text-(--text) mb-2">Tahun Kegiatan <span class="text-red-500">*</span></label>
-        <select id="tahun_id" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 md:px-4 py-2 md:py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all {{ $readOnlyAll ? 'opacity-60 cursor-not-allowed' : '' }}" {{ $readOnlyAll ? 'disabled' : '' }}>
+        <select id="tahun_id" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 md:px-4 py-2 md:py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all {{ ($readOnlyAll || $isActivityLocked) ? 'opacity-60 cursor-not-allowed' : '' }}" {{ ($readOnlyAll || $isActivityLocked) ? 'disabled' : '' }}>
           <option value="">-- pilih --</option>
           @foreach($tahuns as $t)
             <option value="{{ $t->id }}" {{ (string)($prefillUmum['tahun_id'] ?? '') === (string)$t->id ? 'selected' : '' }}>
@@ -81,7 +124,11 @@
     </div>
 
     <div class="mt-4 text-[10px] md:text-xs text-(--muted)">
-      <i class="bi bi-info-circle"></i> Warna status indikator: <b class="text-(--text)">abu</b> (kosong), <b class="text-amber-500">oranye</b> (progres), <b class="text-emerald-500">hijau</b> (lengkap).
+      @if($isActivityLocked)
+        <i class="bi bi-exclamation-triangle-fill text-blue-500"></i> Setiap OPD hanya diperbolehkan menginput <b class="text-(--text)">1 Nama Kegiatan</b> per tahun.
+      @else
+        <i class="bi bi-info-circle"></i> Warna status indikator: <b class="text-(--text)">abu</b> (kosong), <b class="text-amber-500">oranye</b> (progres), <b class="text-emerald-500">hijau</b> (lengkap).
+      @endif
     </div>
   </div>
 </div>
@@ -93,6 +140,10 @@
 @elseif(!$canFillDataUmum && $canFillIndikator)
   <div class="bg-cyan-500/10 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 rounded-xl p-4 mb-6">
     <i class="bi bi-info-circle me-1"></i> Data Umum dikunci oleh admin. Anda hanya dapat melanjutkan indikator dengan Data Umum dari tahun terpilih.
+  </div>
+@elseif($isActivityLocked)
+  <div class="bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 rounded-xl p-4 mb-6">
+    <i class="bi bi-info-circle me-1"></i> <strong>Pembatasan Tahunan:</strong> Anda sudah mengisi LKE di tahun kalender ini. Data Umum (Nama Kegiatan, Nomor Rekomendasi, dan Tahun LKE) telah dikunci agar konsisten.
   </div>
 @endif
 
@@ -110,7 +161,7 @@
   @foreach($domains as $d)
     @php $accId = 'acc'.$d->id; @endphp
 
-    <div class="bg-(--panel) border border-(--border-strong) rounded-2xl overflow-hidden shadow-sm transition-all duration-200 indicator-card" id="card{{ $d->id }}">
+    <div class="bg-(--panel) border border-(--border-strong) rounded-2xl overflow-hidden shadow-sm transition-all duration-200 indicator-card scroll-mt-header" id="card{{ $d->id }}">
       {{-- HEADER CLICKABLE: toggle manual --}}
       <div class="bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border-b border-(--border-strong) p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer transition-colors lke-head-toggle"
            data-target="{{ $accId }}" tabindex="0">
@@ -146,8 +197,12 @@
                 </thead>
                 <tbody class="divide-y divide-(--border-strong)">
                   @foreach($d->kriterias as $k)
-                    <tr class="kriteria-row transition-colors {{ $indikatorInputLocked ? 'opacity-60 cursor-not-allowed' : 'hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer' }}"
-                        onclick="selectRow({{ $d->id }}, {{ $k->id }}, {{ $k->tingkat }})"
+                    <tr
+                        class="kriteria-row transition-colors {{ $indikatorInputLocked ? 'opacity-60 cursor-not-allowed' : 'hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer' }}"
+                        data-kp-select-row
+                        data-domain-id="{{ (int) $d->id }}"
+                        data-kriteria-id="{{ (int) $k->id }}"
+                        data-tingkat="{{ (int) $k->tingkat }}"
                         id="row{{ $d->id }}_{{ $k->id }}">
                       <td class="p-3 border-r border-(--border-strong) text-center align-middle">
                         <label class="inline-flex items-center justify-center gap-2 m-0 w-full h-full cursor-pointer pointer-events-none">
@@ -157,7 +212,10 @@
                                  value="{{ $k->id }}"
                                  id="radio{{ $d->id }}_{{ $k->id }}"
                                  {{ $indikatorInputLocked ? 'disabled' : '' }}
-                                 onchange="onSelectTingkat({{ $d->id }}, {{ $k->id }}, {{ $k->tingkat }})">
+                                 data-kp-tingkat-radio
+                                 data-domain-id="{{ (int) $d->id }}"
+                                 data-kriteria-id="{{ (int) $k->id }}"
+                                 data-tingkat="{{ (int) $k->tingkat }}">
                           <span class="font-bold text-base md:text-lg text-(--text) span-num">{{ $k->tingkat }}</span>
                         </label>
                       </td>
@@ -178,10 +236,11 @@
             <label class="block text-xs md:text-sm font-semibold text-(--text) mb-2 uppercase tracking-wide">Penjelasan <span class="text-red-500">*</span></label>
             <textarea class="indikator-input w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all text-xs md:text-sm leading-relaxed"
                       id="penjelasan{{ $d->id }}"
+                      data-kp-penjelasan
+                      data-domain-id="{{ (int) $d->id }}"
                       rows="3"
                       placeholder="Jelaskan kondisi indikator ini..."
-                      {{ $indikatorInputLocked ? 'disabled' : '' }}
-                      oninput="onPenjelasanInput({{ $d->id }})"></textarea>
+                      {{ $indikatorInputLocked ? 'disabled' : '' }}></textarea>
             <div class="text-[10px] md:text-xs text-(--muted) mt-1"><i class="bi bi-info-circle"></i> Penjelasan wajib diisi untuk dianggap lengkap.</div>
           </div>
 
@@ -195,7 +254,9 @@
                        id="file{{ $d->id }}"
                        multiple
                        {{ $indikatorInputLocked ? 'disabled' : '' }}
-                       onchange="onFilesSelected({{ $d->id }})" title="Pilih file bukti dukung">
+                       data-kp-files
+                       data-domain-id="{{ (int) $d->id }}"
+                       title="Pilih file bukti dukung">
                 <div class="w-full bg-(--sidebar-bg) border-2 border-dashed border-(--border-strong) hover:border-(--brand) text-(--text) rounded-xl px-4 py-6 flex flex-col items-center justify-center gap-2 transition-all group">
                   <i class="bi bi-cloud-arrow-up text-2xl md:text-3xl text-(--muted) group-hover:text-(--brand) transition-colors"></i>
                   <span class="font-medium text-xs md:text-sm text-(--text)">Klik atau seret file ke sini untuk dipersiapkan</span>
@@ -236,41 +297,32 @@
   <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
     <div class="text-xs md:text-sm">
       <div class="font-bold text-(--text) text-sm md:text-base">Aksi</div>
-      <div class="text-(--muted) mt-1">Simpan untuk memastikan data tersimpan ke draft. Final/Kumpulkan untuk memfinalkan seluruh LKE.</div>
+      <div class="text-(--muted) mt-1">Data tersimpan otomatis (Auto Save). Klik Final/Kumpulkan untuk memfinalkan seluruh LKE.</div>
     </div>
 
     <div class="flex flex-wrap gap-2 w-full md:w-auto">
-      <button type="button" id="btnSaveAll" class="px-4 md:px-5 py-2 md:py-2.5 bg-transparent border border-(--border-strong) text-(--text) rounded-xl hover:bg-white/5 transition-colors flex items-center justify-center gap-2 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex-1 md:flex-auto" onclick="saveAll()" {{ $indikatorInputLocked ? 'disabled' : '' }}>
-        <i class="bi bi-save2"></i> Simpan Draft
-      </button>
-
-      <button type="button" id="btnFinalizeAll" class="px-4 md:px-5 py-2 md:py-2.5 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2 font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-emerald-500/20 flex-1 md:flex-auto" onclick="finalizeAll()" {{ $indikatorInputLocked ? 'disabled' : '' }}>
+      <button type="button" id="btnFinalizeAll" onclick="finalizeAll()" class="px-4 md:px-5 py-2 md:py-2.5 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2 font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-emerald-500/20 flex-1 md:flex-auto" {{ $indikatorInputLocked ? 'disabled' : '' }}>
         <i class="bi bi-check2-circle text-base md:text-lg"></i> Final / Kumpulkan
       </button>
     </div>
   </div>
 </div>
 
+{{-- Config holder untuk JS (diletakkan di HTML, bukan di @push scripts, agar linter tidak menganggap JSX) --}}
+<div id="kpLkeCreateConfig" class="hidden" data-config="{{ $lkeCreateConfigJson }}"></div>
+
 @push('scripts')
-<script>
-  window.LKE_CREATE_CONFIG = {
-    autosaveUrl: @json(route('opd.lke.autosave')),
-    uploadUrl: @json(route('opd.lke.upload')),
-    filesUrl: @json(url('opd/lke/files')),
-    finalizeUrl: @json(route('opd.lke.finalize')),
-    finalizeAllUrl: @json(route('opd.lke.finalizeAll')),
-    csrfToken: @json(csrf_token()),
-    serverDrafts: @json($draftMap ?? []),
-    selectedTahun: @json($tahunId ?? null),
-    canFillDataUmum: @json($canFillDataUmum),
-    canFillIndikator: @json($canFillIndikator),
-    accessBlocked: @json($accessBlocked),
-    accessBlockReason: @json($accessBlockReason),
-    initialUmum: @json($prefillUmum ?? []),
-    initialUmumComplete: @json($initialUmumComplete),
-    authUserId: @json(auth()->id()),
-  };
-</script>
+  <script>
+    /**
+     * Kontrak config untuk `resources/js/opd/lke-create.js`.
+     * Dibaca dari JSON script tag agar linter tidak menganggap token Blade sebagai syntax JS.
+     */
+    (function () {
+      const el = document.getElementById('kpLkeCreateConfig');
+      try { window.LKE_CREATE_CONFIG = JSON.parse(el ? (el.getAttribute('data-config') || '{}') : '{}'); }
+      catch (e) { window.LKE_CREATE_CONFIG = {}; }
+    })();
+  </script>
 @vite(['resources/js/opd/lke-create.js'])
 @endpush
 @endsection

@@ -101,9 +101,33 @@
     </div>
 
     <div class="lg:col-span-5">
-      <div class="bg-(--panel) shadow-sm rounded-2xl p-6 border border-(--border-strong) h-full">
-        <div class="font-semibold text-base md:text-lg text-(--text) mb-2">{{ $informasi->judul }}</div>
-        <div class="text-(--muted) text-xs md:text-sm leading-relaxed mb-6">
+      @php
+        $w = $informasi->warna ?? 'neutral';
+        $infoCardClass = match ($w) {
+          'red' => 'border-red-500/30 bg-red-500/5',
+          'blue' => 'border-blue-500/30 bg-blue-500/5',
+          'amber' => 'border-amber-500/30 bg-amber-500/5',
+          'emerald' => 'border-emerald-500/30 bg-emerald-500/5',
+          default => 'border-(--border-strong) bg-(--panel)',
+        };
+        $infoTitleClass = match ($w) {
+          'red' => 'text-red-700 dark:text-red-200',
+          'blue' => 'text-blue-700 dark:text-blue-200',
+          'amber' => 'text-amber-700 dark:text-amber-200',
+          'emerald' => 'text-emerald-700 dark:text-emerald-200',
+          default => 'text-(--text)',
+        };
+        $infoBodyClass = match ($w) {
+          'red' => 'text-red-700/90 dark:text-red-200/90',
+          'blue' => 'text-blue-700/90 dark:text-blue-200/90',
+          'amber' => 'text-amber-700/90 dark:text-amber-200/90',
+          'emerald' => 'text-emerald-700/90 dark:text-emerald-200/90',
+          default => 'text-(--muted)',
+        };
+      @endphp
+      <div class="shadow-sm rounded-2xl p-6 border h-full {{ $infoCardClass }}">
+        <div class="font-semibold text-base md:text-lg mb-2 break-words {{ $infoTitleClass }}">{{ $informasi->judul }}</div>
+        <div class="text-xs md:text-sm leading-relaxed mb-6 break-words {{ $infoBodyClass }}">
           {{ $informasi->isi }}
         </div>
 

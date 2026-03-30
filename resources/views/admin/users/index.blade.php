@@ -42,7 +42,7 @@
       <tr class="border-b border-(--border-strong) bg-black/5 text-left text-xs md:text-sm font-semibold text-(--muted)">
         <th class="p-4 w-16">No</th>
         <th class="p-4 w-48">Username</th>
-        <th class="p-4">Nama OPD</th>
+        <th class="p-4">Nama Instansi</th>
         <th class="p-4 w-32">Role</th>
         <th class="p-4 w-52 text-center">Aksi</th>
       </tr>
