@@ -1,0 +1,50 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 3.107.211.52
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/project-kp
+
+            # Pull latest code
+            git pull origin main
+
+            # Install PHP dependencies
+            composer install --no-dev --optimize-autoloader
+
+            # Install & build frontend
+            npm install
+            npm run build
+
+            # Laravel maintenance mode
+            php artisan down || true
+
+            # Run migrations
+            php artisan migrate --force
+
+            # Clear caches
+            php artisan config:clear
+            php artisan cache:clear
+            php artisan route:clear
+            php artisan view:clear
+
+            # Fix permissions
+            sudo chown -R www-data:www-data storage bootstrap/cache
+            sudo chmod -R 775 storage bootstrap/cache
+
+            # Back online
+            php artisan up
+
+            echo "Deploy complete!"
