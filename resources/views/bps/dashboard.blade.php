@@ -293,15 +293,15 @@
         };
         chartSubmit = new window.Chart(ctxSubmit, {
           ...baseOptions,
-          data: { labels: ['Sudah', 'Belum'], datasets: [{ data: [0, 0], backgroundColor: ['#16a34a', '#94a3b8'] }] }
+          data: { labels: ['Sudah', 'Draft', 'Belum'], datasets: [{ data: [0, 0, 0],backgroundColor: ['#16a34a', '#f59e0b', '#94a3b8']}] }
         });
         chartPenjelasan = new window.Chart(ctxPenjelasan, {
           ...baseOptions,
-          data: { labels: ['Belum Submit LKE', 'Sebagian Tidak Ada Penjelasan', 'Lengkap'], datasets: [{ data: [0, 0, 0], backgroundColor: ['#94a3b8', '#f59e0b', '#16a34a'] }] }
+          data: { labels: ['Lengkap', 'Revisi', 'Kosong'], datasets: [{ data: [0, 0, 0], backgroundColor: ['#16a34a', '#f59e0b', '#94a3b8'] }] }
         });
         chartBukti = new window.Chart(ctxBukti, {
           ...baseOptions,
-          data: { labels: ['Belum Submit LKE', 'Upload Sebagian', 'Lengkap'], datasets: [{ data: [0, 0, 0], backgroundColor: ['#94a3b8', '#f59e0b', '#16a34a'] }] }
+          data: { labels: ['Lengkap', 'Kosong'], datasets: [{ data: [0, 0], backgroundColor: ['#16a34a', '#94a3b8'] }] }
         });
 
         // Pantau perubahan mode agar warna legend terupdate live
