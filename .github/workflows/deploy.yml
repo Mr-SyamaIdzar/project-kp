@@ -18,7 +18,11 @@ jobs:
           script: |
             cd ~/project-kp
 
+            # Fix ownership for git pull (www-data blocks git)
+            sudo chown -R ubuntu:ubuntu .
+
             # Pull latest code
+            git checkout -- .
             git pull origin main
 
             # Install PHP dependencies
