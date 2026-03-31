@@ -21,12 +21,22 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        $totalOpd = User::where('role', 'opd')->count();
+        $totalDraft = LembarKerjaEvaluasi::query()
+            ->where('status', 'draft')
+            ->select('user_id', 'tahun_id', 'nama_kegiatan', 'nomor_rekomendasi')
+            ->distinct()
+            ->get()
+            ->count();
 
-        $totalDraft = LembarKerjaEvaluasi::where('status', 'draft')->count();
-        $totalFinal = LembarKerjaEvaluasi::where('status', 'final')->count();
+        $lkes = LembarKerjaEvaluasi::query()
+            ->where('status', 'final')
+            ->select('user_id', 'tahun_id', 'nama_kegiatan', 'nomor_rekomendasi')
+            ->selectRaw('COUNT(penilaian_bps) as cnt_scored')
+            ->groupBy('user_id', 'tahun_id', 'nama_kegiatan', 'nomor_rekomendasi')
+            ->get();
 
-        $masukPenilaian = $totalFinal;
+        $totalFinal = $lkes->count();
+        $masukPenilaian = $lkes->where('cnt_scored', 0)->count();
 
         $informasi = RoleInformasi::forRole('bps');
 
@@ -44,6 +54,8 @@ class DashboardController extends Controller
             ->unique()
             ->sortDesc()
             ->values();
+
+        $totalOpd = $opds->count();
 
         return view('bps.dashboard', compact(
             'totalOpd',
@@ -65,11 +77,28 @@ class DashboardController extends Controller
         $totalOpd = $userId > 0 ? 1 : (int) User::where('role', 'opd')->count();
 
         $base = LembarKerjaEvaluasi::query();
-        if ($userId > 0) $base->where('user_id', $userId);
-        if ($year > 0) $base->whereYear('created_at', $year);
+        $baseDraft = LembarKerjaEvaluasi::query()->where('status', 'draft');
+        if ($userId > 0) $baseDraft->where('user_id', $userId);
+        if ($year > 0) $baseDraft->whereYear('created_at', $year);
 
-        $totalDraft = (int) (clone $base)->where('status', 'draft')->count();
-        $totalFinal = (int) (clone $base)->where('status', 'final')->count();
+        $totalDraft = $baseDraft->select('user_id', 'tahun_id', 'nama_kegiatan', 'nomor_rekomendasi')
+            ->distinct()
+            ->get()
+            ->count();
+
+        $lkes = LembarKerjaEvaluasi::query()
+            ->where('status', 'final');
+            
+        if ($userId > 0) $lkes->where('user_id', $userId);
+        if ($year > 0) $lkes->whereYear('created_at', $year);
+
+        $lkes = $lkes->select('user_id', 'tahun_id', 'nama_kegiatan', 'nomor_rekomendasi')
+            ->selectRaw('COUNT(penilaian_bps) as cnt_scored')
+            ->groupBy('user_id', 'tahun_id', 'nama_kegiatan', 'nomor_rekomendasi')
+            ->get();
+
+        $totalFinal = $lkes->count();
+        $masukPenilaian = $lkes->where('cnt_scored', 0)->count();
 
         return response()->json([
             'ok' => true,
@@ -88,16 +117,6 @@ class DashboardController extends Controller
 
     public function pieStats(Request $request): JsonResponse
     {
-        /**
-         * Endpoint JSON untuk pie chart dashboard.
-         *
-         * Definisi kategori sama dengan dashboard Admin:
-         * - Sudah/Belum submit: per OPD, ada minimal 1 baris LKE status=final pada tahun created_at.
-         * - Penjelasan "Lengkap": semua indikator yang disubmit memiliki penjelasan terisi (trim != '').
-         * - Bukti dukung "Lengkap": untuk setiap indikator dengan nilai >= 2 wajib ada minimal 1 file.
-         *
-         * Pie chart tidak menerima filter OPD (agregat semua OPD) sesuai requirement.
-         */
         $year = (int) $request->get('year', 0);
         $years = LembarKerjaEvaluasi::query()
             ->where('status', 'final')
@@ -116,75 +135,120 @@ class DashboardController extends Controller
         $opdIds = User::query()->where('role', 'opd')->pluck('id')->map(fn ($v) => (int) $v)->values();
         $totalOpd = (int) $opdIds->count();
 
-        $rows = LembarKerjaEvaluasi::query()
-            ->whereIn('lembar_kerja_evaluasi.user_id', $opdIds)
-            ->where('lembar_kerja_evaluasi.status', 'final')
+        // --- PIE 1: Status Submit (Sudah / Draft / Belum) ---
+        $opdWithFinal = LembarKerjaEvaluasi::query()
+            ->whereIn('user_id', $opdIds)
+            ->where('status', 'final')
+            ->whereYear('created_at', $year)
+            ->distinct('user_id')
+            ->pluck('user_id')
+            ->map(fn ($v) => (int) $v)
+            ->values()
+            ->unique();
+
+        $opdWithDraft = LembarKerjaEvaluasi::query()
+            ->whereIn('user_id', $opdIds)
+            ->where('status', 'draft')
+            ->whereYear('created_at', $year)
+            ->whereNotIn('user_id', $opdWithFinal)
+            ->distinct('user_id')
+            ->pluck('user_id')
+            ->map(fn ($v) => (int) $v)
+            ->values()
+            ->unique();
+
+        $cntSudah = $opdWithFinal->count();
+        $cntDraft  = $opdWithDraft->count();
+        $cntBelum  = max($totalOpd - $cntSudah - $cntDraft, 0);
+
+        $userId = (int) $request->get('user_id', 0);
+        $filteredOpdIds = ($userId > 0 && $opdIds->contains($userId)) ? collect([$userId]) : $opdIds;
+        $totalOpdFiltered = $filteredOpdIds->count();
+        $totalMasterIndicators = \App\Models\Indikator::count();
+        $totalExpectedIndicators = $totalOpdFiltered * $totalMasterIndicators;
+
+        // --- PIE 2 & 3: Dihitung Per-Indikator untuk OPD yang difilter ---
+        $lkeRows = LembarKerjaEvaluasi::query()
+            ->whereIn('lembar_kerja_evaluasi.user_id', $filteredOpdIds)
             ->whereYear('lembar_kerja_evaluasi.created_at', $year)
             ->leftJoin('bukti_dukung as bd', 'bd.lembar_kerja_id', '=', 'lembar_kerja_evaluasi.id')
             ->selectRaw("
-                lembar_kerja_evaluasi.id as lke_id,
                 lembar_kerja_evaluasi.user_id,
+                lembar_kerja_evaluasi.domain_id,
                 lembar_kerja_evaluasi.nilai,
                 lembar_kerja_evaluasi.penjelasan,
                 COUNT(bd.id) as file_cnt
             ")
-            ->groupBy('lembar_kerja_evaluasi.id', 'lembar_kerja_evaluasi.user_id', 'lembar_kerja_evaluasi.nilai', 'lembar_kerja_evaluasi.penjelasan')
+            ->groupBy(
+                'lembar_kerja_evaluasi.id', 
+                'lembar_kerja_evaluasi.user_id', 
+                'lembar_kerja_evaluasi.domain_id', 
+                'lembar_kerja_evaluasi.nilai', 
+                'lembar_kerja_evaluasi.penjelasan'
+            )
             ->get();
 
-        $byUser = [];
-        foreach ($opdIds as $uid) {
-            $byUser[(int) $uid] = [
-                'has_submit' => false,
-                'penjelasan_ok' => true,
-                'bukti_ok' => true,
-            ];
-        }
-
-        foreach ($rows as $r) {
-            $uid = (int) $r->user_id;
-            if (!isset($byUser[$uid])) continue;
-
-            $byUser[$uid]['has_submit'] = true;
-
-            $p = trim((string) ($r->penjelasan ?? ''));
-            if ($p === '') $byUser[$uid]['penjelasan_ok'] = false;
-
-            $nilai = (int) ($r->nilai ?? 0);
-            $fileCnt = (int) ($r->file_cnt ?? 0);
-            if ($nilai >= 2 && $fileCnt <= 0) $byUser[$uid]['bukti_ok'] = false;
-        }
-
-        $cntSudah = 0;
-        $cntPenjelasanLengkap = 0;
-        $cntBuktiLengkap = 0;
-        foreach ($byUser as $st) {
-            if ($st['has_submit']) {
-                $cntSudah++;
-                if ($st['penjelasan_ok']) $cntPenjelasanLengkap++;
-                if ($st['bukti_ok']) $cntBuktiLengkap++;
+        $revisiMap = [];
+        if (\Illuminate\Support\Facades\Schema::hasTable('lke_revisi_requests')) {
+            $revisiRows = \App\Models\LkeRevisiRequest::query()
+                ->whereIn('user_id', $filteredOpdIds)
+                ->where('status', 'requested')
+                ->whereYear('created_at', $year)
+                ->get(['user_id', 'domain_id']);
+            foreach ($revisiRows as $r) {
+                $revisiMap[$r->user_id . '_' . $r->domain_id] = true;
             }
         }
 
-        $cntBelum = max($totalOpd - $cntSudah, 0);
-        $cntPenjelasanSebagian = max($cntSudah - $cntPenjelasanLengkap, 0);
-        $cntBuktiSebagian = max($cntSudah - $cntBuktiLengkap, 0);
+        $cntIndikatorRevisi = 0;
+        $cntIndikatorLengkapPengisian = 0;
+        $cntIndikatorLengkapBukti = 0;
+
+        foreach ($lkeRows as $r) {
+            $key = $r->user_id . '_' . $r->domain_id;
+            $isRevisi = isset($revisiMap[$key]);
+
+            $nilai   = (int) ($r->nilai ?? 0);
+            $fileCnt = (int) ($r->file_cnt ?? 0);
+            $hasP    = strlen(trim((string) ($r->penjelasan ?? ''))) > 0;
+            
+            $isLengkapBukti = false;
+            if ($nilai === 1 && $hasP) {
+                $isLengkapBukti = true;
+            } elseif ($nilai >= 2 && $hasP && $fileCnt > 0) {
+                $isLengkapBukti = true;
+            }
+
+            if ($isLengkapBukti) {
+                $cntIndikatorLengkapBukti++;
+            }
+
+            if ($isRevisi) {
+                $cntIndikatorRevisi++;
+            } elseif ($isLengkapBukti) {
+                $cntIndikatorLengkapPengisian++;
+            }
+        }
+
+        $cntIndikatorKosongPengisian = max($totalExpectedIndicators - $cntIndikatorLengkapPengisian - $cntIndikatorRevisi, 0);
+        $cntIndikatorKosongBukti = max($totalExpectedIndicators - $cntIndikatorLengkapBukti, 0);
 
         return response()->json([
-            'ok' => true,
-            'year' => $year,
+            'ok'    => true,
+            'year'  => $year,
             'years' => $years,
             'charts' => [
                 'submit' => [
-                    'labels' => ['Sudah', 'Belum'],
-                    'data' => [$cntSudah, $cntBelum],
+                    'labels' => ['Sudah', 'Draft', 'Belum'],
+                    'data'   => [$cntSudah, $cntDraft, $cntBelum],
                 ],
                 'penjelasan' => [
-                    'labels' => ['Belum Submit LKE', 'Sebagian Tidak Ada Penjelasan', 'Lengkap'],
-                    'data' => [$cntBelum, $cntPenjelasanSebagian, $cntPenjelasanLengkap],
+                    'labels' => ['Lengkap', 'Revisi', 'Kosong'],
+                    'data'   => [$cntIndikatorLengkapPengisian, $cntIndikatorRevisi, $cntIndikatorKosongPengisian],
                 ],
                 'bukti' => [
-                    'labels' => ['Belum Submit LKE', 'Upload Sebagian', 'Lengkap'],
-                    'data' => [$cntBelum, $cntBuktiSebagian, $cntBuktiLengkap],
+                    'labels' => ['Lengkap', 'Kosong'],
+                    'data'   => [$cntIndikatorLengkapBukti, $cntIndikatorKosongBukti],
                 ],
             ],
         ]);

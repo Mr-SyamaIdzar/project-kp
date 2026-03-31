@@ -314,7 +314,14 @@
                 <!-- Penjelasan Revisi -->
                 <div class="mb-5">
                   <label class="block text-xs md:text-sm font-semibold text-(--text) mb-2">Penjelasan Revisi <span class="text-red-500">*</span></label>
-                  <textarea class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all text-xs md:text-sm leading-relaxed" name="penjelasan" rows="4" required placeholder="Tuliskan penjelasan perbaikan di sini...">{{ $oldPenjelasan }}</textarea>
+                  <textarea class="w-full bg-(--sidebar-bg) border {{ $errors->has('penjelasan') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-(--border-strong) focus:ring-amber-500 focus:border-amber-500' }} text-(--text) rounded-xl px-4 py-3 focus:outline-none focus:ring-2 transition-all text-xs md:text-sm leading-relaxed" name="penjelasan" id="revisiPenjelasan{{ $d->id }}" rows="4" required minlength="10" placeholder="Tuliskan penjelasan perbaikan di sini (minimal 10 karakter)...">{{ $oldPenjelasan }}</textarea>
+                  <div class="flex items-center justify-between mt-1">
+                    <div class="text-[10px] text-(--muted)"><i class="bi bi-info-circle"></i> Minimal 10 karakter.</div>
+                    <div class="text-[10px] text-(--muted)" id="revisiCounter{{ $d->id }}">{{ strlen($oldPenjelasan) }} karakter</div>
+                  </div>
+                  @if($errors->has('penjelasan'))
+                    <div class="text-red-500 text-[10px] md:text-xs mt-1 flex items-center gap-1"><i class="bi bi-exclamation-circle"></i> {{ $errors->first('penjelasan') }}</div>
+                  @endif
                 </div>
 
                 <!-- Upload File Bukti Revisi -->
@@ -529,6 +536,21 @@
       applyFilesToInput(domainId);
       renderRevisiPreview(domainId);
     });
+  });
+
+  // Live karakter counter untuk textarea Penjelasan Revisi
+  document.querySelectorAll('[id^="revisiPenjelasan"]').forEach(function(ta) {
+    const domainId = ta.id.replace('revisiPenjelasan', '');
+    const counter = document.getElementById('revisiCounter' + domainId);
+    function updateRevisiCounter() {
+      const len = ta.value.trim().length;
+      if (counter) {
+        counter.textContent = len + ' karakter';
+        counter.className = 'text-[10px] font-medium ' + (len >= 10 ? 'text-emerald-500' : 'text-red-500');
+      }
+    }
+    ta.addEventListener('input', updateRevisiCounter);
+    updateRevisiCounter();
   });
 </script>
 @endsection

@@ -213,10 +213,11 @@ class RiwayatLkeController extends Controller
             'nama_kegiatan' => ['required', 'string', 'max:250'],
             'nomor_rekomendasi' => ['required', 'string', 'max:255'],
             'domain_id' => ['required', 'integer', 'exists:domains,id'],
-            'penjelasan' => ['required', 'string'],
+            'penjelasan' => ['required', 'string', 'min:10'],
             'files' => ['nullable', 'array'],
             'files.*' => ['file', 'max:10240'],
         ], [
+            'penjelasan.min' => 'Penjelasan harus diisi minimal 10 karakter.',
             'files.*.max' => 'Ukuran maksimal setiap file adalah 10MB.',
         ]);
 

@@ -106,14 +106,14 @@
           <span
             data-bps-scored-badge
             data-domain-id="{{ (int) $d->id }}"
-            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold bg-(--brand)/10 border border-(--brand)/30 text-(--brand) whitespace-nowrap {{ $hasBpsEval ? '' : 'hidden' }}">
+            class="{{ $hasBpsEval ? 'inline-flex' : 'hidden' }} items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold bg-(--brand)/10 border border-(--brand)/30 text-(--brand) whitespace-nowrap">
             <i class="bi bi-shield-check"></i> Dinilai
           </span>
 
           <span
             data-bps-requested-badge
             data-domain-id="{{ (int) $d->id }}"
-            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold bg-amber-500/10 border border-amber-500/30 text-amber-500 whitespace-nowrap {{ $isRequested ? '' : 'hidden' }}">
+            class="{{ $isRequested ? 'inline-flex' : 'hidden' }} items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold bg-amber-500/10 border border-amber-500/30 text-amber-500 whitespace-nowrap">
             <i class="bi bi-arrow-return-left"></i>
             <span data-bps-requested-badge-text>Perlu Revisi{{ $reqRound ? ' ('.$reqRound.')' : '' }}</span>
           </span>
@@ -651,14 +651,20 @@
         const domainIdForScore = parseInt(form.getAttribute('data-domain-id') || '0', 10);
         if (Number.isFinite(domainIdForScore) && domainIdForScore > 0) {
           const scoredBadge = document.querySelector(`[data-bps-scored-badge][data-domain-id="${domainIdForScore}"]`);
-          if (scoredBadge) scoredBadge.classList.remove('hidden');
+          if (scoredBadge) {
+              scoredBadge.classList.remove('hidden');
+              scoredBadge.classList.add('inline-flex');
+          }
         }
 
         if (action === 'revisi' && [1,2].includes(round)) {
           const domainId = parseInt(form.getAttribute('data-domain-id') || '0', 10);
           const badge = document.querySelector(`[data-bps-requested-badge][data-domain-id="${domainId}"]`);
           const badgeText = badge ? badge.querySelector('[data-bps-requested-badge-text]') : null;
-          if (badge) badge.classList.remove('hidden');
+          if (badge) {
+              badge.classList.remove('hidden');
+              badge.classList.add('inline-flex');
+          }
           if (badgeText) badgeText.textContent = `Perlu Revisi (${round})`;
 
           // status line & saved reason text

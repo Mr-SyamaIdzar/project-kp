@@ -239,9 +239,13 @@
                       data-kp-penjelasan
                       data-domain-id="{{ (int) $d->id }}"
                       rows="3"
-                      placeholder="Jelaskan kondisi indikator ini..."
+                      minlength="10"
+                      placeholder="Jelaskan kondisi indikator ini (minimal 10 karakter)..."
                       {{ $indikatorInputLocked ? 'disabled' : '' }}></textarea>
-            <div class="text-[10px] md:text-xs text-(--muted) mt-1"><i class="bi bi-info-circle"></i> Penjelasan wajib diisi untuk dianggap lengkap.</div>
+            <div class="flex items-center justify-between mt-1">
+              <div class="text-[10px] md:text-xs text-(--muted)"><i class="bi bi-info-circle"></i> Penjelasan wajib diisi <b class="text-(--text)">minimal 10 karakter</b> untuk dianggap lengkap.</div>
+              <div class="text-[10px] md:text-xs text-(--muted) penjelasan-counter" id="counter{{ $d->id }}">0 karakter</div>
+            </div>
           </div>
 
           {{-- UPLOAD FILE --}}
@@ -324,5 +328,21 @@
     })();
   </script>
 @vite(['resources/js/opd/lke-create.js'])
+<script>
+  // Live karakter counter untuk setiap textarea penjelasan
+  document.querySelectorAll('[data-kp-penjelasan]').forEach(function(ta) {
+    const domainId = ta.getAttribute('data-domain-id');
+    const counter = document.getElementById('counter' + domainId);
+    function updateCounter() {
+      const len = ta.value.trim().length;
+      if (counter) {
+        counter.textContent = len + ' karakter';
+        counter.className = 'text-[10px] md:text-xs penjelasan-counter font-medium ' + (len >= 10 ? 'text-emerald-500' : 'text-red-500');
+      }
+    }
+    ta.addEventListener('input', updateCounter);
+    updateCounter();
+  });
+</script>
 @endpush
 @endsection

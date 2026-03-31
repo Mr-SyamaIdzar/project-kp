@@ -169,7 +169,7 @@ class LembarKerjaEvaluasiController extends Controller
             'nomor_rekomendasi'=> ['required', 'string', 'max:255'],
             'domain_id'        => ['required', 'integer', 'exists:domains,id'],
             'kriteria_id'      => ['nullable', 'integer', 'exists:kriterias,id'],
-            'penjelasan'       => ['nullable', 'string'],
+            'penjelasan'       => ['nullable', 'string', 'min:10'],
         ]);
 
         if ($this->isBpsLockedPacket(
@@ -254,7 +254,7 @@ class LembarKerjaEvaluasiController extends Controller
         $hasFiles = ($lke->bukti_dukung_count ?? 0) > 0;
 
         $hasK = (bool) $lke->kriteria_id;
-        $hasP = strlen(trim((string) $lke->penjelasan)) > 0;
+        $hasP = strlen(trim((string) $lke->penjelasan)) >= 10;
         $tingkat = $lke->nilai ?? null;
 
         $isFilled = $hasK || $hasP || $hasFiles;
@@ -359,7 +359,7 @@ class LembarKerjaEvaluasiController extends Controller
     private function isComplete(LembarKerjaEvaluasi $lke): bool
     {
         $hasK = (bool) $lke->kriteria_id;
-        $hasP = strlen(trim((string) $lke->penjelasan)) > 0;
+        $hasP = strlen(trim((string) $lke->penjelasan)) >= 10;
 
         if (!$hasK || !$hasP) {
             return false;

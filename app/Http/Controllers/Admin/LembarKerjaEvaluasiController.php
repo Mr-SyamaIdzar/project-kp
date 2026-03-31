@@ -159,6 +159,9 @@ class LembarKerjaEvaluasiController extends Controller
         $namaKegiatan = trim((string) $request->get('nama_kegiatan', ''));
         $nomorRekomendasi = trim((string) $request->get('nomor_rekomendasi', ''));
         $exportYear = (int) $request->get('export_year', 0);
+        $exportStatus = $request->get('export_status', 'all');
+
+        $totalDomains = Indikator::count();
 
         $query = LembarKerjaEvaluasi::query()
             ->with(['user:id,nama,username', 'tahun:id,tahun', 'domain:id,kode'])
@@ -223,6 +226,17 @@ class LembarKerjaEvaluasiController extends Controller
                     'domain_groups' => $domainGroups, // domain_id => Collection<LKE history>
                 ];
             })
+            ->when($exportStatus === 'done', function ($collection) use ($totalDomains) {
+                return $collection->filter(function ($package) use ($totalDomains) {
+                    $scoredCount = 0;
+                    foreach ($package['domain_groups'] as $hist) {
+                        if ($hist->whereNotNull('penilaian_bps')->count() > 0) {
+                            $scoredCount++;
+                        }
+                    }
+                    return $totalDomains > 0 && $scoredCount >= $totalDomains;
+                });
+            })
             ->sortBy([
                 ['user_id', 'asc'],
                 ['tahun', 'asc'],
@@ -258,8 +272,9 @@ class LembarKerjaEvaluasiController extends Controller
         ];
         foreach ($domainOrder as $domain) {
             $headers[] = 'Kode Indikator';
-            $headers[] = 'Nilai OPD';
-            $headers[] = 'Penjelasan (Setiap tingkatan kriteria diberi Bukti Dukung)';
+            $headers[] = 'Penilaian OPD';
+            $headers[] = 'Penjelasan OPD Awal';
+            $headers[] = 'Penjelasan OPD Setelah Direvisi';
             $headers[] = 'Penilaian BPS';
             $headers[] = 'Catatan BPS';
         }
@@ -288,11 +303,13 @@ class LembarKerjaEvaluasiController extends Controller
                     $p1 = trim((string) ($rev1?->penjelasan ?? ''));
                     $p2 = trim((string) ($rev2?->penjelasan ?? ''));
 
-                    $penjelasanParts = [];
-                    if ($p0 !== '') $penjelasanParts[] = "Sebelum: {$p0}";
-                    if ($p1 !== '') $penjelasanParts[] = "Revisi 1: {$p1}";
-                    if ($p2 !== '') $penjelasanParts[] = "Revisi 2: {$p2}";
-                    $penjelasan = $penjelasanParts ? implode("\n", $penjelasanParts) : '-';
+                    $penjelasanAwal = $p0 !== '' ? $p0 : '-';
+                    $penjelasanAkhir = '-';
+                    if ($p2 !== '') {
+                        $penjelasanAkhir = $p2;
+                    } elseif ($p1 !== '') {
+                        $penjelasanAkhir = $p1;
+                    }
 
                     $lastBps = $hist->whereNotNull('penilaian_bps')->sortByDesc('updated_at')->first();
                     $penilaianBps = $lastBps?->penilaian_bps ? (string) $lastBps->penilaian_bps : '-';
@@ -302,18 +319,23 @@ class LembarKerjaEvaluasiController extends Controller
                     $a1 = trim((string) ($alasanMap[$keyBase.'|1'] ?? ''));
                     $a2 = trim((string) ($alasanMap[$keyBase.'|2'] ?? ''));
 
-                    $catParts = [];
-                    if ($catEval !== '') $catParts[] = "Catatan Evaluasi: {$catEval}";
-                    if ($a1 !== '') $catParts[] = "Alasan Revisi 1: {$a1}";
-                    if ($a2 !== '') $catParts[] = "Alasan Revisi 2: {$a2}";
-                    $catatanBps = $catParts ? implode("\n", $catParts) : '-';
+                    $catatanBps = '-';
+                    if ($a2 !== '') {
+                        $catatanBps = $a2;
+                    } elseif ($a1 !== '') {
+                        $catatanBps = $a1;
+                    } elseif ($catEval !== '') {
+                        $catatanBps = $catEval;
+                    }
 
                     $rowData[] = $kode;
                     $rowData[] = $nilai;
-                    $rowData[] = $penjelasan;
+                    $rowData[] = $penjelasanAwal;
+                    $rowData[] = $penjelasanAkhir;
                     $rowData[] = $penilaianBps;
                     $rowData[] = $catatanBps;
                 } else {
+                    $rowData[] = '-';
                     $rowData[] = '-';
                     $rowData[] = '-';
                     $rowData[] = '-';
@@ -366,17 +388,17 @@ class LembarKerjaEvaluasiController extends Controller
                 // Header row always gets centered or bold later if needed, but for now apply Normal.
                 if ($rIdx > 0) {
                     if ($cIdx >= 4) {
-                        // 5 kolom per domain: Kode(0), Nilai(1), Penjelasan(2), Penilaian BPS(3), Catatan BPS(4)
-                        $colGroupIndex = ($cIdx - 4) % 5;
+                        // 6 kolom per domain: Kode(0), Penilaian OPD(1), Penjelasan Awal(2), Penjelasan Revisi(3), Penilaian BPS(4), Catatan BPS(5)
+                        $colGroupIndex = ($cIdx - 4) % 6;
                         if ($colGroupIndex === 0) {
                             $sAttr = ' s="1"'; // Center (Kode Indikator)
                         } elseif ($colGroupIndex === 1) {
-                            $sAttr = ' s="2"'; // Center (Nilai OPD)
-                        } elseif ($colGroupIndex === 2) {
-                            $sAttr = ' s="3"'; // Left, Wrap, Top (Penjelasan)
-                        } elseif ($colGroupIndex === 3) {
-                            $sAttr = ' s="2"'; // Center (Penilaian BPS)
+                            $sAttr = ' s="2"'; // Center (Penilaian OPD)
+                        } elseif ($colGroupIndex === 2 || $colGroupIndex === 3) {
+                            $sAttr = ' s="3"'; // Left, Wrap, Top (Penjelasan Awal/Revisi)
                         } elseif ($colGroupIndex === 4) {
+                            $sAttr = ' s="2"'; // Center (Penilaian BPS)
+                        } elseif ($colGroupIndex === 5) {
                             $sAttr = ' s="3"'; // Left, Wrap, Top (Catatan BPS)
                         }
                     } else {
@@ -410,11 +432,14 @@ class LembarKerjaEvaluasiController extends Controller
             // Kode (Center)
             $colsXml .= '<col min="'.$currentColIndex.'" max="'.$currentColIndex.'" width="15" customWidth="1"/>';
             $currentColIndex++;
-            // Nilai OPD (Center)
-            $colsXml .= '<col min="'.$currentColIndex.'" max="'.$currentColIndex.'" width="12" customWidth="1"/>';
+            // Penilaian OPD (Center)
+            $colsXml .= '<col min="'.$currentColIndex.'" max="'.$currentColIndex.'" width="15" customWidth="1"/>';
             $currentColIndex++;
-            // Penjelasan (Left-Top Wrap)
-            $colsXml .= '<col min="'.$currentColIndex.'" max="'.$currentColIndex.'" width="50" customWidth="1"/>';
+            // Penjelasan OPD Awal (Left-Top Wrap)
+            $colsXml .= '<col min="'.$currentColIndex.'" max="'.$currentColIndex.'" width="45" customWidth="1"/>';
+            $currentColIndex++;
+            // Penjelasan OPD Setelah Direvisi (Left-Top Wrap)
+            $colsXml .= '<col min="'.$currentColIndex.'" max="'.$currentColIndex.'" width="45" customWidth="1"/>';
             $currentColIndex++;
             // Penilaian BPS (Center)
             $colsXml .= '<col min="'.$currentColIndex.'" max="'.$currentColIndex.'" width="15" customWidth="1"/>';

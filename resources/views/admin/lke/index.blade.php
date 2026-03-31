@@ -12,7 +12,7 @@
 <div class="bg-(--panel) border border-(--border-strong) rounded-2xl p-4 mb-6">
   <form method="GET" action="{{ route('lke.index') }}" class="flex flex-col sm:flex-row flex-wrap gap-3 items-start sm:items-end">
     <div class="w-full sm:w-auto sm:flex-1 min-w-0">
-      <select name="user_id" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all">
+      <select name="user_id" onchange="this.form.submit()" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all">
         <option value="0">Semua OPD Terdaftar</option>
         @foreach($opds as $u)
           <option value="{{ $u->id }}" {{ (int)$userId === (int)$u->id ? 'selected' : '' }}>
@@ -21,23 +21,26 @@
         @endforeach
       </select>
     </div>
+    <input type="hidden" name="nama_kegiatan" value="{{ $namaKegiatan ?? '' }}">
+    <input type="hidden" name="nomor_rekomendasi" value="{{ $nomorRekomendasi ?? '' }}">
     <div class="w-full sm:w-auto sm:flex-1 min-w-0">
-      <select name="export_year" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all">
+      <select name="export_year" onchange="this.form.submit()" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all">
         <option value="0">Semua Tahun Created LKE</option>
         @foreach(($exportYears ?? collect()) as $y)
           <option value="{{ $y }}" {{ (int)($exportYear ?? 0) === (int)$y ? 'selected' : '' }}>{{ $y }}</option>
         @endforeach
       </select>
     </div>
+    <div class="w-full sm:w-auto sm:flex-1 min-w-0">
+      <select name="export_status" onchange="this.form.submit()" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all">
+        <option value="all" {{ request('export_status') === 'all' ? 'selected' : '' }}>Semua Status Export</option>
+        <option value="done" {{ request('export_status') === 'done' ? 'selected' : '' }}>Sudah Dinilai BPS (Done)</option>
+      </select>
+    </div>
     <div class="flex flex-wrap gap-2 shrink-0">
-      <button class="px-3 py-2 bg-transparent border border-(--border-strong) text-(--text) rounded-xl hover:bg-white/5 transition-colors flex items-center gap-2 text-xs md:text-sm" type="submit">
-        <i class="bi bi-funnel"></i> Terapkan
-      </button>
-      <a class="px-3 py-2 bg-green-600 border border-green-500 text-white rounded-xl hover:bg-green-700 transition-colors flex items-center gap-2 text-xs md:text-sm" href="{{ route('lke.export', [
-        'user_id' => $userId, 'nama_kegiatan' => $namaKegiatan, 'nomor_rekomendasi' => $nomorRekomendasi, 'export_year' => $exportYear ?? 0,
-      ]) }}">
+      <button type="submit" formaction="{{ route('lke.export') }}" formmethod="GET" class="px-3 py-2 bg-green-600 border border-green-500 text-white rounded-xl hover:bg-green-700 transition-colors flex items-center gap-2 text-xs md:text-sm">
         <i class="bi bi-file-earmark-excel"></i> Export Excel
-      </a>
+      </button>
       @if((int)$userId > 0 || (int)($exportYear ?? 0) > 0)
         <a class="px-3 py-2 bg-transparent border border-orange-500/50 text-orange-500 rounded-xl hover:bg-orange-500/10 transition-colors flex items-center gap-2 text-xs md:text-sm" href="{{ route('lke.index') }}">
           <i class="bi bi-x-circle"></i> Reset

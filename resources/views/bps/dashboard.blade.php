@@ -13,7 +13,7 @@
   <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
     <div class="min-w-0 flex-1">
       <div class="text-xs md:text-sm font-semibold text-(--text)">Filter OPD (untuk navigasi cepat)</div>
-      <div class="text-[10px] md:text-xs text-(--muted) mt-0.5">Tidak mempengaruhi pie chart. Pie chart hanya mengikuti Tahun Submit.</div>
+      <div class="text-[10px] md:text-xs text-(--muted) mt-0.5">Filter juga mempengaruhi pie chart di bawah.</div>
       <div class="mt-3 flex flex-col sm:flex-row gap-3">
         <div class="w-full sm:w-80">
           <select id="dashOpdSelectBps" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all">
@@ -63,7 +63,7 @@
 
   <div class="bg-(--panel) shadow-sm rounded-2xl p-6 border border-(--border-strong) transition-all hover:-translate-y-1 hover:shadow-md">
     <div class="flex items-center justify-between mb-4">
-      <div class="text-(--muted) text-xs md:text-sm font-medium">Final</div>
+      <div class="text-(--muted) text-xs md:text-sm font-medium">LKE Final</div>
       <i class="bi bi-check2-circle text-xl md:text-2xl text-(--muted) opacity-50"></i>
     </div>
     <div class="font-bold text-2xl md:text-3xl text-(--text) mb-1" data-dash-bps-total-final>{{ $totalFinal }}</div>
@@ -72,7 +72,7 @@
 
   <div class="bg-(--panel) shadow-sm rounded-2xl p-6 border border-(--border-strong) transition-all hover:-translate-y-1 hover:shadow-md">
     <div class="flex items-center justify-between mb-4">
-      <div class="text-(--muted) text-xs md:text-sm font-medium">Masuk Penilaian</div>
+      <div class="text-(--muted) text-xs md:text-sm font-medium">LKE Masuk Penilaian</div>
       <i class="bi bi-clipboard-check text-xl md:text-2xl text-(--muted) opacity-50"></i>
     </div>
     <div class="font-bold text-2xl md:text-3xl text-(--text) mb-1" data-dash-bps-masuk-penilaian>{{ $masukPenilaian }}</div>
@@ -142,19 +142,8 @@
 <div class="mt-6 bg-(--panel) border border-(--border-strong) rounded-2xl p-5 md:p-6">
   <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
     <div>
-      <div class="font-semibold text-base md:text-lg text-(--text)">Ringkasan OPD</div>
-      <div class="text-(--muted) text-xs md:text-sm mt-1">Pie chart mengikuti filter <b class="text-(--text)">Tahun Submit (created_at)</b> dan update live.</div>
-    </div>
-    <div class="w-full md:w-64">
-      <label class="block text-[10px] md:text-xs text-(--muted) font-semibold mb-2 uppercase tracking-wide">Tahun Submit</label>
-      <select id="dashChartYearBps" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all">
-      @php $ys = ($years ?? collect()); @endphp
-      @forelse($ys as $y)
-        <option value="{{ (int)$y }}">{{ (int)$y }}</option>
-      @empty
-        <option value="{{ now()->year }}">{{ now()->year }}</option>
-      @endforelse
-      </select>
+      <div class="font-semibold text-base md:text-lg text-(--text)">Ringkasan</div>
+      <div class="text-(--muted) text-xs md:text-sm mt-1">Pie chart sinkron dengan <b class="text-(--text)">Filter OPD</b> dan <b class="text-(--text)">Filter Tahun</b> di atas.</div>
     </div>
   </div>
 
@@ -166,13 +155,13 @@
       </div>
     </div>
     <div class="bg-(--content-bg) border border-(--border-strong) rounded-2xl p-4">
-      <div class="font-semibold text-sm md:text-base text-(--text) mb-2">Jumlah OPD Berdasarkan Pengisian Penjelasan</div>
+      <div class="font-semibold text-sm md:text-base text-(--text) mb-2">Jumlah Indikator Berdasarkan Pengisian</div>
       <div class="h-64">
         <canvas id="piePenjelasanBps"></canvas>
       </div>
     </div>
     <div class="bg-(--content-bg) border border-(--border-strong) rounded-2xl p-4">
-      <div class="font-semibold text-sm md:text-base text-(--text) mb-2">Jumlah OPD Berdasarkan Bukti Dukung yang Terlampir</div>
+      <div class="font-semibold text-sm md:text-base text-(--text) mb-2">Jumlah Indikator Berdasarkan Status Bukti Dukung</div>
       <div class="h-64">
         <canvas id="pieBuktiBps"></canvas>
       </div>
@@ -188,8 +177,8 @@
     (function () {
       /**
        * Dashboard BPS (client-side):
-       * - Filter OPD + Tahun (atas) hanya untuk navigasi + kartu statistik (endpoint /dashboard/stats)
-       * - Pie chart hanya mengikuti filter Tahun Submit dan update live.
+       * - Filter OPD + Tahun (atas) mengatur navigasi Monitoring LKE
+       * - stats URL memanggil angka kartu, pie-stats tersinkron dengan filter global
        *
        * Stabilitas render:
        * - Chart.js CDN kadang belum siap saat script jalan → tambah loader+retry.
@@ -274,17 +263,16 @@
         } catch (e) {}
       }
       if (opdSelect && yearNavSelect) {
-        opdSelect.addEventListener('change', refreshStats);
-        yearNavSelect.addEventListener('change', refreshStats);
+        opdSelect.addEventListener('change', () => { refreshStats(); refreshCharts(); });
+        yearNavSelect.addEventListener('change', () => { refreshStats(); refreshCharts(); });
         refreshStats();
       }
 
-      const yearSelect = document.getElementById('dashChartYearBps');
       const ctxSubmit = document.getElementById('pieSubmitBps');
       const ctxPenjelasan = document.getElementById('piePenjelasanBps');
       const ctxBukti = document.getElementById('pieBuktiBps');
 
-      if (!yearSelect || !ctxSubmit || !ctxPenjelasan || !ctxBukti) return;
+      if (!ctxSubmit || !ctxPenjelasan || !ctxBukti) return;
 
       let chartSubmit = null;
       let chartPenjelasan = null;
@@ -336,8 +324,10 @@
         try {
           if (aborter) aborter.abort();
           aborter = new AbortController();
-          const y = parseInt(yearSelect.value || '0', 10) || 0;
+          const uid = parseInt(opdSelect?.value || '0', 10) || 0;
+          const y = parseInt(yearNavSelect?.value || '0', 10) || 0;
           const url = new URL(pieUrl, window.location.origin);
+          if (uid > 0) url.searchParams.set('user_id', String(uid));
           if (y > 0) url.searchParams.set('year', String(y));
           const res = await fetch(url.toString(), { headers: { 'Accept': 'application/json' }, signal: aborter.signal });
           const json = await res.json();
@@ -370,7 +360,6 @@
         await refreshCharts();
       }
 
-      yearSelect.addEventListener('change', () => initChartsWithRetry());
       // init pertama: DOM ready + window load (layout lebih stabil)
       initChartsWithRetry();
       window.addEventListener('load', () => setTimeout(initChartsWithRetry, 0));

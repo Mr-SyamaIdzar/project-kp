@@ -31,7 +31,7 @@
     <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
       <div class="min-w-0 flex-1">
         <div class="text-xs md:text-sm font-semibold text-(--text)">Filter OPD (untuk navigasi cepat)</div>
-        <div class="text-[10px] md:text-xs text-(--muted) mt-0.5">Tidak mempengaruhi pie chart. Pie chart hanya mengikuti Tahun Submit.</div>
+        <div class="text-[10px] md:text-xs text-(--muted) mt-0.5">Filter juga mempengaruhi pie chart di bawah.</div>
         <div class="mt-3 flex flex-col sm:flex-row gap-3">
           <div class="w-full sm:w-80">
             <select id="dashOpdSelectAdmin" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all">
@@ -188,19 +188,8 @@
   <div class="mt-6 bg-(--panel) border border-(--border-strong) rounded-2xl p-5 md:p-6">
     <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
       <div>
-        <div class="font-semibold text-base md:text-lg text-(--text)">Ringkasan OPD</div>
-        <div class="text-(--muted) text-xs md:text-sm mt-1">Pie chart mengikuti filter <b class="text-(--text)">Tahun Submit (created_at)</b> dan update live.</div>
-      </div>
-      <div class="w-full md:w-64">
-        <label class="block text-[10px] md:text-xs text-(--muted) font-semibold mb-2 uppercase tracking-wide">Tahun Submit</label>
-        <select id="dashChartYearAdmin" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all">
-          @php $ys = ($years ?? collect()); @endphp
-          @forelse($ys as $y)
-            <option value="{{ (int)$y }}">{{ (int)$y }}</option>
-          @empty
-            <option value="{{ now()->year }}">{{ now()->year }}</option>
-          @endforelse
-        </select>
+        <div class="font-semibold text-base md:text-lg text-(--text)">Ringkasan</div>
+        <div class="text-(--muted) text-xs md:text-sm mt-1">Pie chart sinkron dengan <b class="text-(--text)">Filter OPD</b> dan <b class="text-(--text)">Filter Tahun</b> di atas.</div>
       </div>
     </div>
 
@@ -212,13 +201,13 @@
         </div>
       </div>
       <div class="bg-(--content-bg) border border-(--border-strong) rounded-2xl p-4">
-        <div class="font-semibold text-sm md:text-base text-(--text) mb-2">Jumlah OPD Berdasarkan Pengisian Penjelasan</div>
+        <div class="font-semibold text-sm md:text-base text-(--text) mb-2">Jumlah Indikator Berdasarkan Pengisian</div>
         <div class="h-64">
           <canvas id="piePenjelasanAdmin"></canvas>
         </div>
       </div>
       <div class="bg-(--content-bg) border border-(--border-strong) rounded-2xl p-4">
-        <div class="font-semibold text-sm md:text-base text-(--text) mb-2">Jumlah OPD Berdasarkan Bukti Dukung yang Terlampir</div>
+        <div class="font-semibold text-sm md:text-base text-(--text) mb-2">Jumlah Indikator Berdasarkan Status Bukti Dukung</div>
         <div class="h-64">
           <canvas id="pieBuktiAdmin"></canvas>
         </div>
@@ -233,13 +222,9 @@
     (function () {
       /**
        * Dashboard Admin (client-side):
-       * - Filter OPD + Tahun (atas) hanya untuk:
-       *   1) membentuk link navigasi ke Monitoring LKE
-       *   2) update live angka kartu statistik (endpoint /dashboard/stats)
-       * - Pie chart punya filter Tahun Submit sendiri dan TIDAK dipengaruhi filter OPD.
-       *
-       * Kenapa pakai fetch + AbortController:
-       * - Agar perubahan dropdown cepat tidak menumpuk request (race condition).
+       * - Filter OPD + Tahun (atas) mengatur navigasi Monitoring LKE
+       * - Memanggil stats() untuk angka kartu
+       * - Memanggil pieStats() untuk angka pie chart
        */
       const pieUrl = "{{ route('admin.dashboard.pie-stats') }}";
       const statsUrl = "{{ route('admin.dashboard.stats') }}";
@@ -328,17 +313,16 @@
         } catch (e) {}
       }
       if (opdSelect && yearNavSelect) {
-        opdSelect.addEventListener('change', refreshStats);
-        yearNavSelect.addEventListener('change', refreshStats);
+        opdSelect.addEventListener('change', () => { refreshStats(); refreshCharts(); });
+        yearNavSelect.addEventListener('change', () => { refreshStats(); refreshCharts(); });
         refreshStats();
       }
 
-      const yearSelect = document.getElementById('dashChartYearAdmin');
       const ctxSubmit = document.getElementById('pieSubmitAdmin');
       const ctxPenjelasan = document.getElementById('piePenjelasanAdmin');
       const ctxBukti = document.getElementById('pieBuktiAdmin');
 
-      if (!yearSelect || !ctxSubmit || !ctxPenjelasan || !ctxBukti) return;
+      if (!ctxSubmit || !ctxPenjelasan || !ctxBukti) return;
 
       let chartSubmit = null;
       let chartPenjelasan = null;
@@ -359,15 +343,15 @@
         };
         chartSubmit = new window.Chart(ctxSubmit, {
           ...baseOptions,
-          data: { labels: ['Sudah', 'Belum'], datasets: [{ data: [0, 0], backgroundColor: ['#16a34a', '#94a3b8'] }] }
+          data: { labels: ['Sudah', 'Draft', 'Belum'], datasets: [{ data: [0, 0, 0], backgroundColor: ['#16a34a', '#f59e0b', '#94a3b8'] }] }
         });
         chartPenjelasan = new window.Chart(ctxPenjelasan, {
           ...baseOptions,
-          data: { labels: ['Belum Submit LKE', 'Sebagian Tidak Ada Penjelasan', 'Lengkap'], datasets: [{ data: [0, 0, 0], backgroundColor: ['#94a3b8', '#f59e0b', '#16a34a'] }] }
+          data: { labels: ['Lengkap', 'Revisi', 'Kosong'], datasets: [{ data: [0, 0, 0], backgroundColor: ['#16a34a', '#f59e0b', '#94a3b8'] }] }
         });
         chartBukti = new window.Chart(ctxBukti, {
           ...baseOptions,
-          data: { labels: ['Belum Submit LKE', 'Upload Sebagian', 'Lengkap'], datasets: [{ data: [0, 0, 0], backgroundColor: ['#94a3b8', '#f59e0b', '#16a34a'] }] }
+          data: { labels: ['Lengkap', 'Kosong'], datasets: [{ data: [0, 0], backgroundColor: ['#16a34a', '#94a3b8'] }] }
         });
 
         // Pantau perubahan mode agar warna legend terupdate live
@@ -390,8 +374,10 @@
         try {
           if (aborter) aborter.abort();
           aborter = new AbortController();
-          const y = parseInt(yearSelect.value || '0', 10) || 0;
+          const uid = parseInt(opdSelect?.value || '0', 10) || 0;
+          const y = parseInt(yearNavSelect?.value || '0', 10) || 0;
           const url = new URL(pieUrl, window.location.origin);
+          if (uid > 0) url.searchParams.set('user_id', String(uid));
           if (y > 0) url.searchParams.set('year', String(y));
           const res = await fetch(url.toString(), { headers: { 'Accept': 'application/json' }, signal: aborter.signal });
           const json = await res.json();
@@ -425,7 +411,6 @@
         await refreshCharts();
       }
 
-      yearSelect.addEventListener('change', () => initChartsWithRetry());
       // init pertama: DOM ready + window load (layout lebih stabil)
       initChartsWithRetry();
       window.addEventListener('load', () => setTimeout(initChartsWithRetry, 0));

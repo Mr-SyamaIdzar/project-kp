@@ -470,7 +470,7 @@
     state[domainId].penjelasan = (document.getElementById('penjelasan' + domainId) || {}).value;
 
     const hasK = !!state[domainId].kriteria_id;
-    const hasP = ((state[domainId].penjelasan || '').trim().length) > 0;
+    const hasP = ((state[domainId].penjelasan || '').trim().length) >= 10;
     const hasF = !!state[domainId].hasFiles;
 
     if (hasK || hasP || hasF) setBadge(domainId, 'progress');
@@ -779,7 +779,7 @@
     const hasFiles = !!st.hasFiles;
 
     if (!kriteriaId) return false;
-    if (!penjelasan) return false;
+    if (penjelasan.length < 10) return false;
     if (!tingkat) return false;
 
     if (parseInt(tingkat, 10) === 1) return true;
