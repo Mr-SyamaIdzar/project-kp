@@ -32,8 +32,7 @@ jobs:
             npm install
             npm run build
 
-            # Laravel maintenance mode
-            php artisan down || true
+            # Skip maintenance mode to avoid 503 on failed deploys
 
             # Run migrations
             php artisan migrate --force
@@ -48,7 +47,7 @@ jobs:
             sudo chown -R www-data:www-data storage bootstrap/cache
             sudo chmod -R 775 storage bootstrap/cache
 
-            # Back online
-            php artisan up
+            # Restart PHP-FPM for clean state
+            sudo systemctl reload php8.3-fpm
 
             echo "Deploy complete!"
