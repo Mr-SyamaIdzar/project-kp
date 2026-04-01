@@ -74,6 +74,12 @@
     <span class="nav-ico w-8 h-8 flex items-center justify-center rounded-lg"><i class="bi bi-sliders2 me-1"></i></span>
     <span>Master Menu</span>
   </a>
+
+  <a class="nav-link-custom {{ request()->routeIs('penilaian-akhir.*') ? 'active' : '' }}"
+     href="{{ route('penilaian-akhir.index') }}">
+    <span class="nav-ico w-8 h-8 flex items-center justify-center rounded-lg"><i class="bi bi-award"></i></span>
+    <span>Nilai Akhir OPD</span>
+  </a>
 </nav>
 
 {{-- Sidebar footer: theme toggle + logout --}}

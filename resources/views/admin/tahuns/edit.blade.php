@@ -22,7 +22,7 @@
                 class="w-full bg-(--sidebar-bg) border {{ $errors->has('tahun') ? 'border-red-500 focus:ring-red-500' : 'border-(--border-strong) focus:ring-(--brand)' }} text-(--text) rounded-xl px-4 py-2 focus:outline-none focus:ring-2 transition-all"
                 value="{{ old('tahun', $tahun->tahun) }}" inputmode="numeric" pattern="[0-9]*" maxlength="4" required>
           @error('tahun') <div class="text-red-500 text-[10px] md:text-xs mt-1">{{ $message }}</div> @enderror
-          <small class="text-(--muted) text-[10px] md:text-xs mt-1 block">Hanya angka, 4 digit (1900–2100).</small>
+          <small class="text-(--muted) text-[10px] md:text-xs mt-1 block">Hanya angka, 4 digit (1901–2155).</small>
         </div>
 
         <div class="flex justify-between mt-8">

@@ -31,7 +31,7 @@ class TahunController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'tahun' => ['required', 'digits:4', 'integer', 'min:1900', 'max:2100', 'unique:tahun,tahun'],
+            'tahun' => ['required', 'digits:4', 'integer', 'min:1901', 'max:2155', 'unique:tahun,tahun'],
         ]);
 
         Tahun::create($validated);
@@ -47,7 +47,7 @@ class TahunController extends Controller
     public function update(Request $request, Tahun $tahun)
     {
         $validated = $request->validate([
-            'tahun' => ['required', 'digits:4', 'integer', 'min:1900', 'max:2100', 'unique:tahun,tahun,' . $tahun->id],
+            'tahun' => ['required', 'digits:4', 'integer', 'min:1901', 'max:2155', 'unique:tahun,tahun,' . $tahun->id],
         ]);
 
         $tahun->update($validated);

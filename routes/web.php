@@ -9,6 +9,7 @@ use App\Http\Controllers\BPS\DashboardController as BpsDashboard;
 
 use App\Http\Controllers\Admin\LembarKerjaEvaluasiController as AdminLke;
 use App\Http\Controllers\Admin\MasterMenuController;
+use App\Http\Controllers\Admin\PenilaianAkhirController;
 
 use App\Http\Controllers\BPS\DashboardController as BpsDashboardController;
 use App\Http\Controllers\BPS\PenilaianController as BpsPenilaianController;
@@ -44,10 +45,16 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->group(function () {
     Route::put('/master-menu', [MasterMenuController::class, 'update'])->name('master-menu.update');
     Route::put('/master-menu/informasi', [MasterMenuController::class, 'updateInformasi'])->name('master-menu.updateInformasi');
 
+    // Menu Nilai Akhir OPD (terpisah)
+    Route::get('/penilaian-akhir', [PenilaianAkhirController::class, 'index'])->name('penilaian-akhir.index');
+    Route::post('/penilaian-akhir', [PenilaianAkhirController::class, 'store'])->name('penilaian-akhir.store');
+    Route::delete('/penilaian-akhir', [PenilaianAkhirController::class, 'destroy'])->name('penilaian-akhir.destroy');
+
 });
 
 Route::middleware(['auth','role:opd'])->prefix('opd')->name('opd.')->group(function () {
     Route::get('/dashboard', [OpdDashboard::class, 'index'])->name('dashboard');
+    Route::get('/dashboard/stats', [OpdDashboard::class, 'stats'])->name('dashboard.stats');
 
     Route::get('lke/create', [\App\Http\Controllers\OPD\LembarKerjaEvaluasiController::class, 'create'])->name('lke.create');
 

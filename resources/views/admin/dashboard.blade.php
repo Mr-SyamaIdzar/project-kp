@@ -226,9 +226,9 @@
        * - Memanggil stats() untuk angka kartu
        * - Memanggil pieStats() untuk angka pie chart
        */
-      const pieUrl = "{{ route('admin.dashboard.pie-stats') }}";
-      const statsUrl = "{{ route('admin.dashboard.stats') }}";
-      const lkeIndexBase = "{{ route('lke.index') }}";
+      const pieUrl = "/admin/dashboard/pie-stats";
+const statsUrl = "/admin/dashboard/stats";
+const lkeIndexBase = "/admin/lke";
 
       /**
        * Chart.js CDN kadang terlambat/blocked sehingga `window.Chart` belum ada saat script dieksekusi.

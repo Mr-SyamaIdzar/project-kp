@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\OPD;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminPenilaianAkhir;
 use App\Models\BuktiDukung;
 use App\Models\Indikator;
 use App\Models\LembarKerjaEvaluasi;
@@ -72,6 +73,11 @@ class DashboardController extends Controller
 
         $informasi = RoleInformasi::forRole('opd');
 
+        // Ambil nilai akhir dari admin untuk tahun yang dipilih
+        $penilaianAkhir = AdminPenilaianAkhir::where('user_id', $userId)
+            ->where('tahun', $selectedYear)
+            ->first();
+
         return view('opd.dashboard', compact(
             'totalDraft',
             'totalFinal',
@@ -79,7 +85,59 @@ class DashboardController extends Controller
             'totalFiles',
             'years',
             'selectedYear',
-            'informasi'
+            'informasi',
+            'penilaianAkhir'
         ));
+    }
+
+    /**
+     * AJAX endpoint: stats per tahun (untuk live filter tanpa reload halaman).
+     */
+    public function stats(Request $request)
+    {
+        $userId = Auth::id();
+        $year   = (int) $request->get('year', now()->year);
+        if ($year <= 0) $year = now()->year;
+
+        $totalDraft = LembarKerjaEvaluasi::query()
+            ->where('user_id', $userId)
+            ->where('status', 'draft')
+            ->whereYear('created_at', $year)
+            ->count();
+
+        $totalFinal = LembarKerjaEvaluasi::query()
+            ->where('user_id', $userId)
+            ->whereIn('status', ['final', 'revisi'])
+            ->whereYear('created_at', $year)
+            ->count();
+
+        $totalIndikator = Indikator::query()
+            ->whereYear('created_at', $year)
+            ->count();
+
+        $totalFiles = BuktiDukung::query()
+            ->whereYear('created_at', $year)
+            ->whereHas('lembarKerja', function ($q) use ($userId) {
+                $q->where('user_id', $userId);
+            })
+            ->count();
+
+        $penilaianAkhir = AdminPenilaianAkhir::where('user_id', $userId)
+            ->where('tahun', $year)
+            ->first();
+
+        $penilaianHtml = view('opd.partials.penilaian-akhir-card', [
+            'penilaianAkhir' => $penilaianAkhir,
+            'selectedYear'   => $year,
+        ])->render();
+
+        return response()->json([
+            'ok'                  => true,
+            'total_draft'         => $totalDraft,
+            'total_final'         => $totalFinal,
+            'total_indikator'     => $totalIndikator,
+            'total_files'         => $totalFiles,
+            'penilaian_akhir_html'=> $penilaianHtml,
+        ]);
     }
 }

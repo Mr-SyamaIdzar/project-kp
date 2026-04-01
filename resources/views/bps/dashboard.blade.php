@@ -184,9 +184,9 @@
        * - Chart.js CDN kadang belum siap saat script jalan → tambah loader+retry.
        * - Resize+double update menghindari kasus chart blank saat layout belum settle.
        */
-      const pieUrl = "{{ route('bps.dashboard.pie-stats') }}";
-      const statsUrl = "{{ route('bps.dashboard.stats') }}";
-      const penilaianIndexBase = "{{ route('bps.penilaian.index') }}";
+      const pieUrl = "/bps/dashboard/pie-stats";
+      const statsUrl = "/bps/dashboard/stats";
+      const penilaianIndexBase = "/bps/penilaian/index";
 
       function loadScriptOnce(src) {
         return new Promise((resolve, reject) => {

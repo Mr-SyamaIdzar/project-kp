@@ -19,7 +19,7 @@
     </div>
     <div class="flex flex-wrap gap-2 shrink-0">
       <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-(--brand)/40 bg-(--brand)/10 text-(--brand) text-xs md:text-sm font-semibold">
-        <i class="bi bi-calendar3"></i> Tahun {{ $selectedYear }}
+        <i class="bi bi-calendar3"></i> Tahun <span id="badge-selected-year">{{ $selectedYear }}</span>
       </span>
       <a href="{{ route('opd.lke.create') }}" class="inline-flex items-center gap-2 px-3 md:px-4 py-2 bg-(--brand) text-white rounded-xl hover:opacity-90 transition-opacity text-xs md:text-sm font-medium">
         <i class="bi bi-pencil-square"></i> Isi LKE
@@ -27,11 +27,12 @@
     </div>
   </div>
 
+  {{-- Filter Tahun (live — tanpa button submit) --}}
   <div class="bg-(--panel) border border-(--border-strong) rounded-2xl shadow-sm p-4 mb-6">
-    <form method="GET" action="{{ route('opd.dashboard') }}" class="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+    <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
       <div class="flex-1 w-full sm:max-w-xs">
         <label class="block text-[10px] font-semibold text-(--muted) mb-1.5 uppercase tracking-wide">Filter Tahun</label>
-        <select name="year" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all">
+        <select id="dashYearOpd" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all">
           @forelse($years as $y)
             <option value="{{ $y }}" {{ (int)$selectedYear === (int)$y ? 'selected' : '' }}>{{ $y }}</option>
           @empty
@@ -39,10 +40,15 @@
           @endforelse
         </select>
       </div>
-      <button type="submit" class="px-3 py-2.5 bg-transparent border border-(--border-strong) text-(--text) rounded-xl hover:bg-white/5 transition-colors flex items-center gap-2 text-xs md:text-sm shrink-0">
-        <i class="bi bi-funnel"></i> Terapkan
-      </button>
-    </form>
+      {{-- Spinner untuk indikasi loading --}}
+      <div id="dashYearSpinner" class="hidden items-center gap-2 text-(--muted) text-xs pb-2.5">
+        <svg class="animate-spin w-4 h-4 text-(--brand)" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+        </svg>
+        Memuat...
+      </div>
+    </div>
   </div>
 
   <hr class="border-t border-(--border-strong) my-6">
@@ -54,8 +60,8 @@
         <div class="text-(--muted) text-xs md:text-sm font-medium">Total Draft</div>
         <i class="bi bi-hourglass-split text-xl md:text-2xl text-(--muted) opacity-50"></i>
       </div>
-      <div class="font-bold text-2xl md:text-3xl text-(--text) mb-2">{{ $totalDraft ?? '—' }}</div>
-      <div class="text-(--muted) text-[10px] md:text-xs">LKE yang masih proses ({{ $selectedYear }})</div>
+      <div class="font-bold text-2xl md:text-3xl text-(--text) mb-2" id="stat-total-draft">{{ $totalDraft ?? '—' }}</div>
+      <div class="text-(--muted) text-[10px] md:text-xs">LKE yang masih proses (<span class="stat-year">{{ $selectedYear }}</span>)</div>
     </div>
 
     <div class="bg-(--panel) shadow-sm rounded-2xl p-6 border border-(--border-strong) transition-all hover:-translate-y-1 hover:shadow-md">
@@ -63,8 +69,8 @@
         <div class="text-(--muted) text-xs md:text-sm font-medium">Total Final</div>
         <i class="bi bi-check2-circle text-xl md:text-2xl text-(--muted) opacity-50"></i>
       </div>
-      <div class="font-bold text-2xl md:text-3xl text-(--text) mb-2">{{ $totalFinal ?? '—' }}</div>
-      <div class="text-(--muted) text-[10px] md:text-xs">LKE yang sudah final ({{ $selectedYear }})</div>
+      <div class="font-bold text-2xl md:text-3xl text-(--text) mb-2" id="stat-total-final">{{ $totalFinal ?? '—' }}</div>
+      <div class="text-(--muted) text-[10px] md:text-xs">LKE yang sudah final (<span class="stat-year">{{ $selectedYear }}</span>)</div>
     </div>
 
     <div class="bg-(--panel) shadow-sm rounded-2xl p-6 border border-(--border-strong) transition-all hover:-translate-y-1 hover:shadow-md">
@@ -72,8 +78,8 @@
         <div class="text-(--muted) text-xs md:text-sm font-medium">Indikator Tersedia</div>
         <i class="bi bi-diagram-3 text-xl md:text-2xl text-(--muted) opacity-50"></i>
       </div>
-      <div class="font-bold text-2xl md:text-3xl text-(--text) mb-2">{{ $totalIndikator ?? '—' }}</div>
-      <div class="text-(--muted) text-[10px] md:text-xs">Dari master Domain ({{ $selectedYear }})</div>
+      <div class="font-bold text-2xl md:text-3xl text-(--text) mb-2" id="stat-total-indikator">{{ $totalIndikator ?? '—' }}</div>
+      <div class="text-(--muted) text-[10px] md:text-xs">Dari master Domain (<span class="stat-year">{{ $selectedYear }}</span>)</div>
     </div>
 
     <div class="bg-(--panel) shadow-sm rounded-2xl p-6 border border-(--border-strong) transition-all hover:-translate-y-1 hover:shadow-md">
@@ -81,9 +87,14 @@
         <div class="text-(--muted) text-xs md:text-sm font-medium">Bukti Dukung</div>
         <i class="bi bi-paperclip text-xl md:text-2xl text-(--muted) opacity-50"></i>
       </div>
-      <div class="font-bold text-2xl md:text-3xl text-(--text) mb-2">{{ $totalFiles ?? '—' }}</div>
-      <div class="text-(--muted) text-[10px] md:text-xs">File yang sudah diupload ({{ $selectedYear }})</div>
+      <div class="font-bold text-2xl md:text-3xl text-(--text) mb-2" id="stat-total-files">{{ $totalFiles ?? '—' }}</div>
+      <div class="text-(--muted) text-[10px] md:text-xs">File yang sudah diupload (<span class="stat-year">{{ $selectedYear }}</span>)</div>
     </div>
+  </div>
+
+  {{-- Nilai Akhir dari Admin --}}
+  <div id="card-penilaian-akhir" class="mb-4">
+    @include('opd.partials.penilaian-akhir-card', ['penilaianAkhir' => $penilaianAkhir, 'selectedYear' => $selectedYear])
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -93,7 +104,7 @@
         <div class="text-(--muted) text-xs md:text-sm mb-6">Shortcut untuk pengisian LKE.</div>
 
         <div class="flex flex-wrap gap-2">
-          <a class="px-4 md:px-5 py-2 md:py-2.5 bg-transparent border border-(--border-strong) text-(--text) rounded-xl hover:bg-white/5 transition-colors flex items-center gap-2" href="{{ route('opd.lke.create', ['year' => $selectedYear]) }}">
+          <a id="link-isi-lke" class="px-4 md:px-5 py-2 md:py-2.5 bg-transparent border border-(--border-strong) text-(--text) rounded-xl hover:bg-white/5 transition-colors flex items-center gap-2" href="{{ route('opd.lke.create', ['year' => $selectedYear]) }}">
             <i class="bi bi-pencil-square"></i> Isi LKE Baru
           </a>
         </div>
@@ -146,4 +157,89 @@
       </div>
     </div>
   </div>
+
 @endsection
+
+@push('scripts')
+<script>
+  (function () {
+    const yearSelect   = document.getElementById('dashYearOpd');
+    const spinner      = document.getElementById('dashYearSpinner');
+    const badgeYear    = document.getElementById('badge-selected-year');
+    const statYears    = document.querySelectorAll('.stat-year');
+    const linkIsiLke   = document.getElementById('link-isi-lke');
+    const cardPenilaian = document.getElementById('card-penilaian-akhir');
+
+    const statDraft      = document.getElementById('stat-total-draft');
+    const statFinal      = document.getElementById('stat-total-final');
+    const statIndikator  = document.getElementById('stat-total-indikator');
+    const statFiles      = document.getElementById('stat-total-files');
+
+    if (!yearSelect) return;
+
+    let abortCtrl = null;
+
+    function setYear(y) {
+      if (badgeYear) badgeYear.textContent = y;
+      statYears.forEach(el => el.textContent = y);
+      // Update link Isi LKE
+      if (linkIsiLke) {
+        const url = new URL(linkIsiLke.href, window.location.origin);
+        url.searchParams.set('year', String(y));
+        linkIsiLke.href = url.toString();
+      }
+    }
+
+    async function refreshDashboard(year) {
+      if (abortCtrl) abortCtrl.abort();
+      abortCtrl = new AbortController();
+
+      if (spinner) spinner.classList.remove('hidden');
+      spinner && spinner.classList.add('flex');
+
+      try {
+        const url = new URL('/opd/dashboard/stats', window.location.origin);
+        url.searchParams.set('year', String(year));
+
+        const res  = await fetch(url.toString(), {
+          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          signal: abortCtrl.signal
+        });
+        const json = await res.json();
+
+        if (!json || !json.ok) return;
+
+        if (statDraft     && json.total_draft     !== undefined) statDraft.textContent     = json.total_draft;
+        if (statFinal     && json.total_final     !== undefined) statFinal.textContent     = json.total_final;
+        if (statIndikator && json.total_indikator !== undefined) statIndikator.textContent = json.total_indikator;
+        if (statFiles     && json.total_files     !== undefined) statFiles.textContent     = json.total_files;
+
+        // Update card nilai akhir
+        if (cardPenilaian && json.penilaian_akhir_html !== undefined) {
+          cardPenilaian.innerHTML = json.penilaian_akhir_html;
+        }
+
+        setYear(year);
+
+        // Update URL bar tanpa reload
+        const pageUrl = new URL(window.location.href);
+        pageUrl.searchParams.set('year', String(year));
+        window.history.replaceState({}, '', pageUrl.toString());
+
+      } catch (e) {
+        if (e.name !== 'AbortError') console.error(e);
+      } finally {
+        if (spinner) {
+          spinner.classList.add('hidden');
+          spinner.classList.remove('flex');
+        }
+      }
+    }
+
+    yearSelect.addEventListener('change', () => {
+      const y = parseInt(yearSelect.value, 10) || {{ $selectedYear }};
+      refreshDashboard(y);
+    });
+  })();
+</script>
+@endpush

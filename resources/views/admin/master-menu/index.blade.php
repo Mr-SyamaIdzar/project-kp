@@ -3,7 +3,7 @@
 @php
   $title = 'Master Menu';
   $header = 'Master Menu';
-  $subheader = 'Kontrol akses menu LKE dan isi kolom Informasi untuk tiap role.';
+  $subheader = 'Kontrol akses menu LKE, konten Informasi, dan nilai akhir per OPD.';
 @endphp
 
 @section('content')
@@ -11,7 +11,7 @@
 <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
   <div>
     <div class="font-semibold text-lg md:text-xl">Master Menu per Role</div>
-    <div class="text-(--muted) text-xs md:text-sm mt-1">Atur akses menu Isi LKE dan konten kolom Informasi di dashboard masing-masing role.</div>
+    <div class="text-(--muted) text-xs md:text-sm mt-1">Atur akses menu Isi LKE, konten Informasi, dan nilai akhir OPD.</div>
   </div>
 </div>
 
@@ -38,7 +38,7 @@
   <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
     <div>
       <div class="text-[10px] md:text-xs text-(--muted) mb-1">Role (hanya OPD yang bisa dikontrol)</div>
-      <div class="font-semibold uppercase text-base md:text-lg text-(--text)">{{ $role }}</div>
+      <div class="font-semibold uppercase text-base md:text-lg text-(--text)">OPD</div>
     </div>
     <div>
       <div class="text-[10px] md:text-xs text-(--muted) mb-1">Total User</div>
@@ -51,11 +51,11 @@
   </div>
 </div>
 
-@if($totalUsers === 0 && $role === 'opd')
+@if($totalUsers === 0)
   <div class="bg-yellow-500/10 border border-yellow-500/50 text-yellow-500 text-xs md:text-sm rounded-2xl p-4 mb-6">
-    Belum ada user pada role {{ strtoupper($role) }} yang bisa diatur.
+    Belum ada user pada role OPD yang bisa diatur.
   </div>
-@elseif($role === 'opd')
+@else
   <div class="bg-(--panel) border border-(--border-strong) rounded-2xl p-6 mb-6">
     <div class="mb-6">
       <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs md:text-sm font-medium border {{ $menuIsiLkeAvailable ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500' : 'bg-red-500/10 border-red-500/30 text-red-500' }}">
@@ -84,11 +84,6 @@
       </div>
     </form>
   </div>
-@else
-  <div class="bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 rounded-2xl p-4 mb-6 text-xs md:text-sm flex items-start gap-3">
-    <i class="bi bi-info-circle-fill mt-0.5 shrink-0"></i>
-    <div>Kontrol akses menu Isi LKE hanya berlaku untuk role <b>OPD</b>. Gunakan tab di bawah untuk mengedit konten Informasi role lainnya.</div>
-  </div>
 @endif
 
 {{-- ===== SECTION 2: EDIT KOLOM INFORMASI PER ROLE ===== --}}
@@ -102,25 +97,30 @@
   </div>
 
   {{-- Tab Navigasi --}}
+  {{-- 
+    FIX BUG: Tab ini HANYA mengontrol panel informasi.
+    Tab yang dipilih disimpan di JS (activeInfoTab), bukan di PHP $role.
+    Kontrol akses LKE di atas terpisah dan diatur via form POST sendiri.
+  --}}
   <div class="flex gap-1 mb-6 bg-black/5 rounded-xl p-1 w-fit">
     @foreach(['admin' => 'Admin', 'opd' => 'OPD', 'bps' => 'BPS'] as $r => $label)
       <button type="button"
         onclick="switchInfoTab('{{ $r }}')"
-        id="tab-{{ $r }}"
+        id="info-tab-{{ $r }}"
         class="px-4 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all
-          {{ $role === $r ? 'bg-(--brand) text-white shadow-sm' : 'text-(--muted) hover:text-(--text)' }}">
+          {{ $r === 'opd' ? 'bg-(--brand) text-white shadow-sm' : 'text-(--muted) hover:text-(--text)' }}">
         {{ $label }}
       </button>
     @endforeach
   </div>
 
-  {{-- Panel per role --}}
+  {{-- Panel per role — default aktif: OPD --}}
   @foreach([
     'admin' => $informasiAdmin,
     'opd'   => $informasiOpd,
     'bps'   => $informasiBps,
   ] as $r => $inf)
-    <div id="info-panel-{{ $r }}" class="{{ $role === $r ? '' : 'hidden' }}">
+    <div id="info-panel-{{ $r }}" class="{{ $r !== 'opd' ? 'hidden' : '' }}">
       <form method="POST" action="{{ route('master-menu.updateInformasi') }}">
         @csrf
         @method('PUT')
@@ -186,6 +186,7 @@
   @endforeach
 </div>
 
+
 {{-- Info cards --}}
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
   <div class="bg-(--panel) border border-(--border-strong) rounded-2xl p-6 h-full">
@@ -218,17 +219,13 @@
     const textarea = document.getElementById('isi-' + role);
     const counter  = document.getElementById('word-count-' + role);
     if (!textarea || !counter) return;
-
     const words = countWords(textarea.value);
     counter.textContent = words + ' kata';
-
     if (words >= MAX_WORDS) {
       counter.classList.add('text-red-500', 'font-semibold');
       counter.classList.remove('text-(--muted)', 'text-amber-500');
-      // Potong teks jika melebihi batas
       if (words > MAX_WORDS) {
-        const parts = textarea.value.trim().split(/\s+/);
-        textarea.value = parts.slice(0, MAX_WORDS).join(' ');
+        textarea.value = textarea.value.trim().split(/\s+/).slice(0, MAX_WORDS).join(' ');
         counter.textContent = MAX_WORDS + ' kata (batas maksimum)';
       }
     } else if (words >= MAX_WORDS * 0.85) {
@@ -241,32 +238,23 @@
   }
 
   function switchInfoTab(role) {
-    // Sembunyikan semua panel
     ['admin', 'opd', 'bps'].forEach(r => {
       const panel = document.getElementById('info-panel-' + r);
-      const tab   = document.getElementById('tab-' + r);
+      const tab   = document.getElementById('info-tab-' + r);
       if (panel) panel.classList.add('hidden');
-      if (tab) {
-        tab.classList.remove('bg-(--brand)', 'text-white', 'shadow-sm');
-        tab.classList.add('text-(--muted)');
-      }
+      if (tab) { tab.classList.remove('bg-(--brand)', 'text-white', 'shadow-sm'); tab.classList.add('text-(--muted)'); }
     });
-    // Tampilkan yang dipilih
-    const activePanel = document.getElementById('info-panel-' + role);
-    const activeTab   = document.getElementById('tab-' + role);
-    if (activePanel) activePanel.classList.remove('hidden');
-    if (activeTab) {
-      activeTab.classList.add('bg-(--brand)', 'text-white', 'shadow-sm');
-      activeTab.classList.remove('text-(--muted)');
-    }
-    // Update word count untuk panel yang baru dibuka
+    const ap = document.getElementById('info-panel-' + role);
+    const at = document.getElementById('info-tab-' + role);
+    if (ap) ap.classList.remove('hidden');
+    if (at) { at.classList.add('bg-(--brand)', 'text-white', 'shadow-sm'); at.classList.remove('text-(--muted)'); }
     updateWordCount(role);
   }
 
-  // Init word count untuk semua panel saat halaman load
   document.addEventListener('DOMContentLoaded', () => {
     ['admin', 'opd', 'bps'].forEach(r => updateWordCount(r));
   });
 </script>
 
 @endsection
+
