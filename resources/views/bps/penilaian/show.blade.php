@@ -371,14 +371,14 @@
                         <i class="bi bi-send"></i> {{ $r1Req ? 'Kirim Ulang' : 'Minta Revisi 1' }}
                       </button>
                     </div>
-                    <div class="px-4 pb-4 text-[10px] text-(--muted)" data-bps-rev-saved data-round="1">
+                    <div class="px-4 pb-4 text-xs md:text-sm text-(--muted) leading-relaxed" data-bps-rev-saved data-round="1">
                       @php $saved1 = trim((string)($revisiCatatan[$d->id][1] ?? '')); @endphp
                       <span data-bps-rev-saved-prefix>
                         {{ $saved1 !== '' ? 'Alasan tersimpan:' : 'Isi alasan revisi di textarea di atas, lalu klik tombol “Minta Revisi 1”.' }}
                       </span>
-                      <span class="text-(--text) font-semibold" data-bps-rev-saved-text>{{ $saved1 }}</span>
+                      <span class="text-(--text) font-semibold block mt-1 bg-black/5 dark:bg-white/5 p-3 rounded-lg border border-(--border-strong)" data-bps-rev-saved-text>{{ $saved1 }}</span>
                       @if($r1Done)
-                        <div class="mt-2">Revisi 1 sudah selesai, tidak dapat diubah lagi.</div>
+                        <div class="mt-2 text-[10px] md:text-xs">Revisi 1 sudah selesai, tidak dapat diubah lagi.</div>
                       @endif
                     </div>
                   </div>
@@ -406,14 +406,14 @@
                         <i class="bi bi-send"></i> {{ $r2Req ? 'Kirim Ulang' : 'Minta Revisi 2' }}
                       </button>
                     </div>
-                    <div class="px-4 pb-4 text-[10px] text-(--muted)" data-bps-rev-saved data-round="2">
+                    <div class="px-4 pb-4 text-xs md:text-sm text-(--muted) leading-relaxed" data-bps-rev-saved data-round="2">
                       @php $saved2 = trim((string)($revisiCatatan[$d->id][2] ?? '')); @endphp
                       <span data-bps-rev-saved-prefix>
                         {{ $saved2 !== '' ? 'Alasan tersimpan:' : 'Isi alasan revisi di textarea di atas, lalu klik tombol “Minta Revisi 2”.' }}
                       </span>
-                      <span class="text-(--text) font-semibold" data-bps-rev-saved-text>{{ $saved2 }}</span>
+                      <span class="text-(--text) font-semibold block mt-1 bg-black/5 dark:bg-white/5 p-3 rounded-lg border border-(--border-strong)" data-bps-rev-saved-text>{{ $saved2 }}</span>
                       @if($r2Done)
-                        <div class="mt-2">Revisi 2 sudah selesai, tidak dapat diubah lagi.</div>
+                        <div class="mt-2 text-[10px] md:text-xs">Revisi 2 sudah selesai, tidak dapat diubah lagi.</div>
                       @endif
                     </div>
                   </div>
