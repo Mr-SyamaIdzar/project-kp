@@ -56,16 +56,21 @@
            style="width: {{ number_format($persen, 1) }}%"></div>
     </div>
 
-    <div class="flex flex-wrap gap-4 text-xs text-(--muted)">
+    <div class="flex flex-wrap gap-4">
       @if($penilaianAkhir->catatan)
-        <div class="flex items-start gap-2 flex-1 min-w-0">
-          <i class="bi bi-chat-left-text shrink-0 mt-0.5 text-(--brand)"></i>
-          <span class="break-words">{{ $penilaianAkhir->catatan }}</span>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-2">
+            <i class="bi bi-chat-left-text text-(--brand) text-sm"></i>
+            <span class="text-xs font-semibold text-(--muted) uppercase tracking-wide">Catatan</span>
+          </div>
+          <div class="bg-(--sidebar-bg) border-l-4 border-(--brand) rounded-r-xl px-4 py-3">
+            <p class="text-sm text-(--text) leading-relaxed break-words">{{ $penilaianAkhir->catatan }}</p>
+          </div>
         </div>
       @endif
 
       @if($penilaianAkhir->file)
-        <div class="shrink-0">
+        <div class="shrink-0 flex items-end">
           <a href="{{ asset('storage/' . $penilaianAkhir->file) }}" target="_blank"
             class="inline-flex items-center gap-2 px-4 py-2 bg-(--brand)/10 text-(--brand) rounded-xl hover:bg-(--brand)/20 transition-colors font-medium text-xs">
             <i class="bi bi-file-earmark-arrow-down"></i>
