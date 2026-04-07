@@ -163,14 +163,22 @@ class LembarKerjaEvaluasiController extends Controller
             return $this->accessDenied('Menu Isi Lembar Kerja Evaluasi Tidak ada');
         }
 
-        $request->validate([
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
             'nama_kegiatan'    => ['required', 'string', 'max:250'],
             'tahun_id'         => ['required', 'integer', 'exists:tahun,id'],
             'nomor_rekomendasi'=> ['required', 'string', 'max:255'],
             'domain_id'        => ['required', 'integer', 'exists:domains,id'],
             'kriteria_id'      => ['nullable', 'integer', 'exists:kriterias,id'],
-            'penjelasan'       => ['nullable', 'string', 'min:10'],
+            'penjelasan'       => ['nullable', 'string'],
         ]);
+
+        if ($validator->fails()) {
+            \Illuminate\Support\Facades\Log::error('Autosave Validation Failed:', $validator->errors()->toArray());
+            return response()->json([
+                'ok' => false,
+                'message' => 'Validasi error: ' . implode(', ', $validator->errors()->all()),
+            ], 422);
+        }
 
         if ($this->isBpsLockedPacket(
             $userId,

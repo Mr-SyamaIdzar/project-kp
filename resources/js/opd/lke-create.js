@@ -428,7 +428,13 @@
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.ok) {
-        if (saveInfo) saveInfo.innerHTML = '<span class="text-(--muted)">Status:</span> <span class="text-red-500 font-bold">Gagal tersimpan</span>';
+        const errorMsg = data.message || 'Gagal tersimpan';
+        console.error('Autosave Error:', errorMsg);
+        if (saveInfo) saveInfo.innerHTML = `<span class="text-(--muted)">Status:</span> <span class="text-red-500 font-bold" title="${escapeHtml(errorMsg)}">Gagal tersimpan</span>`;
+        // Tampilkan toast error spesifik jika status-nya 422
+        if (res.status === 422 && data.message) {
+            toast(data.message, 'error');
+        }
         return false;
       }
 

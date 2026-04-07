@@ -15,35 +15,39 @@
   </div>
 </div>
 
+
 <div class="bg-(--panel) border border-(--border-strong) rounded-2xl p-4 mb-6">
-  <form method="GET" action="{{ route('opd.lke.riwayat.index') }}" class="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+  <form method="GET" action="{{ route('opd.lke.riwayat.index') }}" id="riwayatFilterForm" class="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
     <div class="w-full sm:w-64">
-      <select name="tahun_id" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all">
+      <label class="block text-[10px] text-(--muted) font-semibold uppercase tracking-wide mb-1.5">Filter Tahun Finalisasi</label>
+      <select name="tahun_created"
+              id="tahunCreatedSelect"
+              onchange="document.getElementById('riwayatFilterForm').submit()"
+              class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all cursor-pointer">
         <option value="0">Semua Tahun</option>
-        @foreach($tahuns as $t)
-          <option value="{{ $t->id }}" {{ (int)$tahunId === (int)$t->id ? 'selected' : '' }}>{{ $t->tahun }}</option>
+        @foreach($tahunOptions as $thn)
+          <option value="{{ $thn }}" {{ (int)$tahunFilter === (int)$thn ? 'selected' : '' }}>{{ $thn }}</option>
         @endforeach
       </select>
     </div>
-    <div class="flex gap-2 shrink-0">
-      <button class="px-3 py-2 bg-transparent border border-(--border-strong) text-(--text) rounded-xl hover:bg-white/5 transition-colors flex items-center gap-2 text-xs md:text-sm" type="submit">
-        <i class="bi bi-funnel"></i> Terapkan
-      </button>
-      @if((int)$tahunId > 0)
-        <a class="px-3 py-2 bg-transparent border border-orange-500/50 text-orange-500 rounded-xl hover:bg-orange-500/10 transition-colors flex items-center gap-2 text-xs md:text-sm" href="{{ route('opd.lke.riwayat.index') }}">
+    @if((int)$tahunFilter > 0)
+      <div class="shrink-0 flex items-end">
+        <a class="px-3 py-2.5 bg-transparent border border-orange-500/50 text-orange-500 rounded-xl hover:bg-orange-500/10 transition-colors flex items-center gap-1.5 text-xs md:text-sm"
+           href="{{ route('opd.lke.riwayat.index') }}">
           <i class="bi bi-x-circle"></i> Reset
         </a>
-      @endif
-    </div>
+      </div>
+    @endif
   </form>
 </div>
+
 
 <div class="overflow-x-auto bg-(--panel) border border-(--border-strong) rounded-2xl">
   <table class="w-full text-(--text) border-collapse whitespace-nowrap min-w-[760px]">
     <thead>
       <tr class="border-b border-(--border-strong) bg-black/5 text-left text-xs md:text-sm font-semibold text-(--muted)">
         <th class="p-4 w-16">No</th>
-        <th class="p-4 w-24">Tahun</th>
+        <th class="p-4 w-24">Tahun Kegiatan</th>
         <th class="p-4">Nama Kegiatan</th>
         <th class="p-4 w-48">Nomor Rekomendasi</th>
         <th class="p-4 w-72">Ringkasan</th>

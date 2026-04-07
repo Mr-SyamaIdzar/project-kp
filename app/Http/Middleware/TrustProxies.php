@@ -9,11 +9,22 @@ class TrustProxies extends Middleware
 {
     /**
      * The trusted proxies for this application.
-     * '*' = trust all proxies (untuk setup Cloudflare → Nginx → PHP)
      *
      * @var array<int, string>|string|null
      */
-    protected $proxies = '*';
+    protected $proxies;
+
+    /**
+     * Override method prepare untuk mengatur proxy dinamis berdasarkan environment
+     */
+    public function __construct()
+    {
+        // Hanya set proxy '*' jika environment production
+        // Di lokal biarkan default (null) agar tidak bentrok dengan HTTP biasa
+        if (app()->environment('production')) {
+            $this->proxies = '*';
+        }
+    }
 
     /**
      * The headers that should be used to detect proxies.

@@ -27,10 +27,18 @@ class RiwayatLkeController extends Controller
     public function index(Request $request)
     {
         $userId = (int) (Auth::id() ?? 0);
-        $tahunId = (int) $request->get('tahun_id', 0);
+        // Filter berdasarkan tahun created_at (tahun finalisasi LKE), bukan tahun_id (tahun kegiatan)
+        $tahunFilter = (int) $request->get('tahun_created', 0);
         $totalIndikator = (int) Indikator::count();
 
-        $tahuns = Tahun::orderByDesc('tahun')->get();
+        // Daftar tahun dinamis dari created_at yang ada di data user ini
+        $tahunOptions = LembarKerjaEvaluasi::query()
+            ->selectRaw('YEAR(created_at) as tahun_created')
+            ->where('user_id', $userId)
+            ->whereIn('status', ['final', 'revisi'])
+            ->groupBy('tahun_created')
+            ->orderByDesc('tahun_created')
+            ->pluck('tahun_created');
 
         $rows = LembarKerjaEvaluasi::query()
             ->selectRaw("
@@ -38,12 +46,13 @@ class RiwayatLkeController extends Controller
                 nama_kegiatan,
                 nomor_rekomendasi,
                 MAX(updated_at) as last_update,
+                MAX(created_at) as created_at_max,
                 MAX(is_locked_bps) as is_locked_bps,
                 COUNT(DISTINCT domain_id) as cnt_total
             ")
             ->where('user_id', $userId)
             ->whereIn('status', ['final', 'revisi'])
-            ->when($tahunId > 0, fn ($q) => $q->where('tahun_id', $tahunId))
+            ->when($tahunFilter > 0, fn ($q) => $q->whereYear('created_at', $tahunFilter))
             ->groupBy('tahun_id', 'nama_kegiatan', 'nomor_rekomendasi')
             ->orderByDesc('last_update')
             ->paginate(10)
@@ -59,7 +68,7 @@ class RiwayatLkeController extends Controller
                 ->select(['tahun_id', 'nama_kegiatan', 'nomor_rekomendasi', 'domain_id'])
                 ->where('user_id', $userId)
                 ->where('status', 'requested')
-                ->when($tahunId > 0, fn ($q) => $q->where('tahun_id', $tahunId))
+                ->when($tahunFilter > 0, fn ($q) => $q->whereYear('created_at', $tahunFilter))
                 ->get();
 
             $revisiMap = $requested
@@ -83,7 +92,7 @@ class RiwayatLkeController extends Controller
             })
         );
 
-        return view('opd.lke.riwayat.index', compact('rows', 'tahuns', 'tahunId', 'tahunMap', 'totalIndikator'));
+        return view('opd.lke.riwayat.index', compact('rows', 'tahunOptions', 'tahunFilter', 'tahunMap', 'totalIndikator'));
     }
 
     public function show(Request $request)
