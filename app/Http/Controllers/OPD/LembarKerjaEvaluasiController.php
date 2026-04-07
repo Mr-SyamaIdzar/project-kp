@@ -293,9 +293,10 @@ class LembarKerjaEvaluasiController extends Controller
         $request->validate([
             'lke_id' => ['required', 'integer', 'exists:lembar_kerja_evaluasi,id'],
             'files' => ['required', 'array', 'min:1'],
-            'files.*' => ['file', 'max:10240'],
+            'files.*' => ['file', 'max:10240', 'mimes:pdf,jpg,jpeg,png,webp,doc,docx,xls,xlsx'],
         ], [
-            'files.*.max' => 'Ukuran maksimal setiap file adalah 10MB.',
+            'files.*.max'   => 'Ukuran maksimal setiap file adalah 10MB.',
+            'files.*.mimes' => 'Tipe file tidak diizinkan. Format yang diterima: PDF, JPG, PNG, WEBP, DOC, DOCX, XLS, XLSX. File GIF tidak diperbolehkan.',
         ]);
 
         foreach ($request->file('files') as $file) {

@@ -80,7 +80,7 @@
   <div class="p-5">
     <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
       <div class="md:col-span-3">
-        <label class="block text-xs md:text-sm font-semibold text-(--text) mb-2">Nama Perangkat Daerah</label>
+        <label class="block text-xs md:text-sm font-semibold text-(--text) mb-2">Nama Instansi</label>
         <input type="text" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 md:px-4 py-2 md:py-2.5 text-xs md:text-sm opacity-60 cursor-not-allowed" value="{{ Auth::user()->nama ?? Auth::user()->username }}" readonly>
         <div class="text-[10px] md:text-xs text-(--muted) mt-1">Diambil otomatis.</div>
       </div>

@@ -644,14 +644,35 @@
     });
   }
 
+  const BLOCKED_EXTENSIONS = ['gif'];
+
   function onFilesSelected(domainId) {
     if (!guardIndicatorAccess()) return;
     const input = document.getElementById('file' + domainId);
     if (!input || !input.files || input.files.length === 0) return;
 
     const incoming = Array.from(input.files);
-    const validFiles = incoming.filter((f) => f.size <= MAX_UPLOAD_FILE_SIZE);
-    const oversized = incoming.filter((f) => f.size > MAX_UPLOAD_FILE_SIZE);
+
+    // Tolak file GIF
+    const blockedFiles = incoming.filter((f) => {
+      const ext = (f.name.split('.').pop() || '').toLowerCase();
+      return BLOCKED_EXTENSIONS.includes(ext);
+    });
+    const afterBlockFilter = incoming.filter((f) => {
+      const ext = (f.name.split('.').pop() || '').toLowerCase();
+      return !BLOCKED_EXTENSIONS.includes(ext);
+    });
+
+    if (blockedFiles.length) {
+      const names = blockedFiles.slice(0, 2).map((f) => f.name).join(', ');
+      const suffix = blockedFiles.length > 2 ? ' dan lainnya' : '';
+      toast(`File GIF tidak diizinkan: ${names}${suffix}.`, 'error');
+      const info = document.getElementById('fileInfo' + domainId);
+      if (info) info.innerHTML = '<span class="text-red-500">File GIF tidak diperbolehkan.</span>';
+    }
+
+    const validFiles = afterBlockFilter.filter((f) => f.size <= MAX_UPLOAD_FILE_SIZE);
+    const oversized = afterBlockFilter.filter((f) => f.size > MAX_UPLOAD_FILE_SIZE);
 
     if (oversized.length) {
       const names = oversized.slice(0, 2).map((f) => f.name).join(', ');
