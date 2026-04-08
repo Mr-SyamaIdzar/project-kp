@@ -31,12 +31,6 @@
             @endforeach
           </select>
         </div>
-        <div class="flex gap-2">
-          <a id="dashOpdGoBps" href="{{ route('bps.penilaian.index') }}"
-             class="px-3 py-2 bg-transparent border border-(--border-strong) text-(--text) rounded-xl hover:bg-white/5 transition-colors flex items-center gap-2 text-xs md:text-sm">
-            <i class="bi bi-arrow-right-circle"></i> Buka Penilaian OPD
-          </a>
-        </div>
       </div>
     </div>
   </div>
