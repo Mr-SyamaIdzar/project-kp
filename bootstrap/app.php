@@ -16,8 +16,16 @@ return Application::configure(basePath: dirname(__DIR__))
         // Trust all proxies (Cloudflare → Nginx → PHP) agar HTTPS terdeteksi
         $middleware->trustProxies(at: '*');
 
+        // Tambahkan PreventBackHistory ke semua request web agar halaman
+        // tidak di-cache oleh browser; mencegah tombol "back" menampilkan
+        // halaman terproteksi setelah logout.
+        $middleware->web(append: [
+            \App\Http\Middleware\PreventBackHistory::class,
+        ]);
+
         $middleware->alias([
-            'role' => \App\Http\Middleware\RoleMiddleware::class,
+            'role'               => \App\Http\Middleware\RoleMiddleware::class,
+            'no-cache'           => \App\Http\Middleware\PreventBackHistory::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
