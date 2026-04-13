@@ -25,7 +25,9 @@
         <input type="hidden" name="tahun_id" value="{{ $tahun->id }}">
         <input type="hidden" name="nama_kegiatan" value="{{ $namaKegiatan }}">
         <input type="hidden" name="nomor_rekomendasi" value="{{ $nomorRek }}">
-        <button type="submit" 
+        <button type="submit"
+          id="btn-finalisasi"
+          data-total-domains="{{ $domains->count() }}"
           @if(!$allScored) disabled title="Semua indikator harus dinilai terlebih dahulu" @endif
           class="px-3 md:px-4 py-1.5 md:py-2 bg-(--brand) text-white rounded-xl hover:bg-(--brand)/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors text-xs md:text-sm font-semibold shadow-sm">
           <i class="bi bi-check-all text-lg"></i> Finalisasikan Penilaian
@@ -656,6 +658,8 @@
               scoredBadge.classList.add('inline-flex');
           }
         }
+        // 2) Cek apakah semua indikator sudah dinilai → aktifkan tombol finalisasi secara live
+        checkFinalizeButton();
 
         if (action === 'revisi' && [1,2].includes(round)) {
           const domainId = parseInt(form.getAttribute('data-domain-id') || '0', 10);
@@ -705,6 +709,29 @@
     if (state === 'saving') { el.classList.add('text-(--muted)');  el.innerHTML = '<i class="bi bi-arrow-repeat"></i> Menyimpan...'; }
     if (state === 'saved')  { el.classList.add('text-emerald-500');     el.innerHTML = '<i class="bi bi-check-circle-fill"></i> Tersimpan'; }
     if (state === 'error')  { el.classList.add('text-red-500');         el.innerHTML = `<i class="bi bi-exclamation-circle-fill"></i> ${msg ?? 'Error'}`; }
+  }
+
+  /**
+   * Periksa apakah semua indikator sudah dinilai secara live.
+   * Jika jumlah badge "Dinilai" yang tampil == total domain, aktifkan tombol finalisasi.
+   */
+  function checkFinalizeButton() {
+    const btn = document.getElementById('btn-finalisasi');
+    if (!btn) return; // sudah terkunci / tidak ada tombol
+
+    const totalDomains = parseInt(btn.getAttribute('data-total-domains') || '0', 10);
+    if (totalDomains <= 0) return;
+
+    const scoredCount = document.querySelectorAll('[data-bps-scored-badge]:not(.hidden)').length;
+
+    if (scoredCount >= totalDomains) {
+      btn.disabled = false;
+      btn.removeAttribute('title');
+      btn.classList.remove('opacity-50', 'cursor-not-allowed');
+    } else {
+      btn.disabled = true;
+      btn.setAttribute('title', 'Semua indikator harus dinilai terlebih dahulu');
+    }
   }
 </script>
 @endsection
