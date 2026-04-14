@@ -569,7 +569,7 @@
         </div>
         <button
           type="button"
-          class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+          class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
           aria-label="Hapus file"
           title="Hapus file ini"
           onclick="window.deleteServerFile(${f.id}, ${domainId})"
