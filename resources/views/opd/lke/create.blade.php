@@ -33,6 +33,7 @@
     'autosaveUrl' => route('opd.lke.autosave'),
     'uploadUrl' => route('opd.lke.upload'),
     'filesUrl' => url('opd/lke/files'),
+    'deleteFileUrl' => url('opd/lke/file'),
     'finalizeUrl' => route('opd.lke.finalize'),
     'finalizeAllUrl' => route('opd.lke.finalizeAll'),
     'csrfToken' => csrf_token(),

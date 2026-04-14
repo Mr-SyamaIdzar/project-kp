@@ -12,6 +12,7 @@
   const AUTOSAVE_URL = C.autosaveUrl || '';
   const UPLOAD_URL = C.uploadUrl || '';
   const FILES_URL = C.filesUrl || '';
+  const DELETE_FILE_URL = C.deleteFileUrl || '';
   const FINALIZE_URL = C.finalizeUrl || '';
   const FINALIZE_ALL_URL = C.finalizeAllUrl || '';
   const CSRF_TOKEN = C.csrfToken || '';
@@ -545,7 +546,7 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   }
 
-  function fileCardHtml(f) {
+  function fileCardHtml(f, domainId) {
     const ext = (f.name.split('.').pop() || '').toLowerCase();
     const isImg = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
     const isPdf = ext === 'pdf';
@@ -560,12 +561,21 @@
     }
 
     return `
-      <div class="flex items-center gap-3 p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-xl mb-3">
+      <div class="flex items-center gap-3 p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-xl mb-3 relative group pr-12" id="server-file-${f.id}">
         ${thumb}
         <div class="flex-1 min-w-0">
           <div class="font-semibold text-(--text) text-xs md:text-sm leading-tight truncate" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
           <a href="${f.url}" target="_blank" class="text-[10px] md:text-xs text-emerald-600 hover:text-emerald-700 hover:underline mt-1 inline-block font-medium"><i class="bi bi-box-arrow-up-right me-1"></i> Buka File</a>
         </div>
+        <button
+          type="button"
+          class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+          aria-label="Hapus file"
+          title="Hapus file ini"
+          onclick="window.deleteServerFile(${f.id}, ${domainId})"
+        >
+          <i class="bi bi-trash"></i>
+        </button>
       </div>
     `;
   }
@@ -588,11 +598,70 @@
     }
 
     let html = '<div class="font-semibold text-xs md:text-sm mb-2 text-(--text)">File Tersimpan di Server:</div><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">';
-    html += data.files.map(fileCardHtml).join('');
+    html += data.files.map((f) => fileCardHtml(f, domainId)).join('');
     html += '</div>';
     wrap.innerHTML = html;
 
     state[domainId].hasFiles = true;
+  }
+
+  /**
+   * Hapus satu file yang sudah tersimpan di server.
+   * Dipanggil dari tombol hapus dalam fileCardHtml().
+   */
+  async function deleteServerFile(fileId, domainId) {
+    if (!guardIndicatorAccess()) return;
+
+    const confirmed = await confirmPopup({
+      title: 'Hapus File',
+      message: 'Yakin ingin menghapus file ini? Tindakan ini <b>tidak dapat dibatalkan</b>.',
+      yesText: 'Ya, Hapus',
+      noText: 'Batal',
+    });
+    if (!confirmed) return;
+
+    // Optimistic UI: sembunyikan card dulu
+    const cardEl = document.getElementById(`server-file-${fileId}`);
+    if (cardEl) {
+      cardEl.style.opacity = '0.4';
+      cardEl.style.pointerEvents = 'none';
+    }
+
+    try {
+      const res = await fetch(`${DELETE_FILE_URL}/${fileId}`, {
+        method: 'DELETE',
+        headers: {
+          'X-CSRF-TOKEN': CSRF_TOKEN,
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json',
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.ok) {
+        // Kembalikan tampilan card jika gagal
+        if (cardEl) {
+          cardEl.style.opacity = '';
+          cardEl.style.pointerEvents = '';
+        }
+        toast(data.message || 'Gagal menghapus file.', 'error');
+        return;
+      }
+
+      // Refresh daftar file dari server + sinkronkan state & badge
+      await refreshFiles(domainId);
+      state[domainId] = state[domainId] || {};
+      state[domainId].hasFiles = data.has_files;
+      setBadge(domainId, data.progress);
+      toast('File berhasil dihapus.', 'success');
+    } catch (e) {
+      console.error(e);
+      if (cardEl) {
+        cardEl.style.opacity = '';
+        cardEl.style.pointerEvents = '';
+      }
+      toast('Error jaringan saat menghapus file.', 'error');
+    }
   }
 
   function renderPreview(domainId) {
@@ -1179,6 +1248,7 @@
   window.onPenjelasanInput = onPenjelasanInput;
   window.toggleAccordion = toggleAccordion;
   window.saveAll = saveAll;
+  window.deleteServerFile = deleteServerFile;
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

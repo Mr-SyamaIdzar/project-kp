@@ -11,6 +11,7 @@ use App\Models\Tahun;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class LembarKerjaEvaluasiController extends Controller
@@ -405,6 +406,60 @@ class LembarKerjaEvaluasiController extends Controller
             });
 
         return response()->json(['ok' => true, 'files' => $files]);
+    }
+
+    /**
+     * Hapus satu file bukti dukung (DB + storage).
+     * Validasi: hanya pemilik LKE yang boleh hapus, dan paket tidak boleh dikunci BPS.
+     */
+    public function deleteFile(\App\Models\BuktiDukung $buktiDukung)
+    {
+        $userId = (int) (Auth::id() ?? 0);
+        if (!$this->isMenuIsiLkeAvailable($userId)) {
+            return $this->accessDenied('Menu Isi Lembar Kerja Evaluasi Tidak ada');
+        }
+
+        // Pastikan file milik LKE yang dimiliki user ini
+        $lke = LembarKerjaEvaluasi::where('id', $buktiDukung->lembar_kerja_id)
+            ->where('user_id', $userId)
+            ->first();
+
+        if (!$lke) {
+            return response()->json(['ok' => false, 'message' => 'File tidak ditemukan atau bukan milik Anda.'], 403);
+        }
+
+        if ((bool) $lke->is_locked_bps) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Penilaian telah difinalisasi oleh BPS. File tidak dapat dihapus.',
+            ], 403);
+        }
+
+        // Hapus dari storage
+        if ($buktiDukung->file && Storage::disk('public')->exists($buktiDukung->file)) {
+            Storage::disk('public')->delete($buktiDukung->file);
+        }
+
+        // Hapus dari database
+        $buktiDukung->delete();
+
+        // Hitung ulang status LKE setelah penghapusan
+        $lke->loadCount('buktiDukung');
+        $hasFiles = ($lke->bukti_dukung_count ?? 0) > 0;
+        $hasK = (bool) $lke->kriteria_id;
+        $hasP = strlen(trim((string) $lke->penjelasan)) >= 10;
+        $tingkat = $lke->nilai ?? null;
+        $isFilled = $hasK || $hasP || $hasFiles;
+        $isDone   = $hasK && $hasP;
+        if ($tingkat !== null && (int) $tingkat !== 1) {
+            $isDone = $isDone && $hasFiles;
+        }
+
+        return response()->json([
+            'ok'       => true,
+            'progress' => $isDone ? 'done' : ($isFilled ? 'progress' : 'empty'),
+            'has_files'=> $hasFiles,
+        ]);
     }
 
     public function finalizeAll(Request $request)

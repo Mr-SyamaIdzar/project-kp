@@ -67,6 +67,7 @@ Route::middleware(['auth','role:opd'])->prefix('opd')->name('opd.')->group(funct
         Route::get('lke/files/{lke}', [\App\Http\Controllers\OPD\LembarKerjaEvaluasiController::class, 'files'])->name('lke.files');
         Route::post('lke/finalize-all', [\App\Http\Controllers\OPD\LembarKerjaEvaluasiController::class, 'finalizeAll'])->name('lke.finalizeAll');
     });
+    Route::delete('lke/file/{buktiDukung}', [\App\Http\Controllers\OPD\LembarKerjaEvaluasiController::class, 'deleteFile'])->name('lke.file.delete');
     Route::get('lke/riwayat', [\App\Http\Controllers\OPD\RiwayatLkeController::class, 'index'])->name('lke.riwayat.index');
     Route::get('lke/riwayat/show', [\App\Http\Controllers\OPD\RiwayatLkeController::class, 'show'])->name('lke.riwayat.show');
     Route::post('lke/riwayat/revisi', [\App\Http\Controllers\OPD\RiwayatLkeController::class, 'storeRevisi'])->name('lke.riwayat.revisi.store');
