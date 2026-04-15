@@ -12,7 +12,7 @@
   Dokumentasi (OPD Riwayat LKE - Detail Paket):
   - Halaman ini bersifat read-only kecuali untuk indikator yang sedang diminta revisi oleh BPS (`canReviseDomainIds`).
   - Revisi OPD dibatasi: hanya `penjelasan` dan `bukti dukung` yang boleh berubah; tingkat/kriteria tetap mengikuti baseline.
-  - Panel histori menampilkan: Sebelum / Revisi 1 / Revisi 2 (jika ada) agar OPD & BPS punya konteks perubahan.
+  - Panel histori menampilkan: Sebelum / Revisi Dokumen (jika ada) agar OPD & BPS punya konteks perubahan.
   - Jika BPS sudah finalisasi paket (`isLockedBps=1`), semua aksi revisi dinonaktifkan (UI + server-side di controller).
 --}}
 <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
@@ -87,15 +87,15 @@
     @endphp
 
     <div class="bg-(--panel) border border-(--border-strong) rounded-2xl overflow-hidden shadow-sm transition-all duration-200">
-      <div class="bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border-b border-(--border-strong) p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer transition-colors"
-           onclick="toggleAccordion('{{ $accId }}')">
-        <div class="flex-1">
+      <div class="bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border-b border-(--border-strong) p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer transition-colors lke-head-toggle"
+           data-target="{{ $accId }}" tabindex="0">
+        <div class="flex-1 pointer-events-none">
           <div class="font-semibold text-(--text) text-sm md:text-base mb-1">{{ $d->nama_indikator }}</div>
           <div class="text-[10px] md:text-xs text-(--muted)">
             <b class="text-(--text) font-semibold">{{ $d->kode }}</b> - {{ $d->nama_domain }} - {{ $d->nama_aspek }}
           </div>
         </div>
-        <div class="flex items-center gap-2 flex-wrap md:flex-nowrap">
+        <div class="flex items-center gap-2 flex-wrap md:flex-nowrap shrink-0 pointer-events-none">
           @if($isTargetRevisi)
             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] md:text-xs font-semibold bg-red-500/10 text-red-600 border border-red-500/30 whitespace-nowrap">
               Perlu Revisi{{ $activeRound ? ' ('.$activeRound.')' : '' }}
@@ -114,7 +114,9 @@
               Kosong
             </span>
           @endif
-          <i class="bi bi-chevron-down text-(--muted) text-xs md:text-sm transition-transform duration-200 accordion-icon" id="icon-{{ $accId }}"></i>
+          <button class="px-2 md:px-3 py-1 md:py-1.5 bg-transparent border border-(--border-strong) text-(--text) rounded-lg text-[10px] md:text-xs font-medium pointer-events-auto hover:bg-white/5 transition-all duration-500 btn-toggle-acc min-w-17.5" data-target="{{ $accId }}" type="button">
+            <i class="bi bi-chevron-down transition-transform duration-500 inline-block accordion-icon" id="icon-{{ $accId }}"></i> Buka
+          </button>
         </div>
       </div>
 
@@ -158,35 +160,29 @@
           <!-- Alasan Revisi dari BPS (per round) -->
           @php
             $alasanR1 = trim((string)($revisiCatatanMap[$d->id][1] ?? ''));
-            $alasanR2 = trim((string)($revisiCatatanMap[$d->id][2] ?? ''));
           @endphp
-          @if($alasanR1 !== '' || $alasanR2 !== '')
+          @if($alasanR1 !== '')
             <div class="mb-5">
               <div class="text-[10px] md:text-xs font-semibold text-amber-600 dark:text-amber-500 mb-2 uppercase tracking-wide flex items-center gap-1.5"><i class="bi bi-chat-square-text"></i> Alasan Revisi dari BPS</div>
               <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-amber-800 dark:text-amber-200 text-xs md:text-sm leading-relaxed whitespace-pre-wrap space-y-2">
                 @if($alasanR1 !== '')
                   <div><b>Revisi 1:</b> {{ $alasanR1 }}</div>
                 @endif
-                @if($alasanR2 !== '')
-                  <div><b>Revisi 2:</b> {{ $alasanR2 }}</div>
-                @endif
               </div>
             </div>
           @endif
 
-          <!-- Histori Penjelasan & Bukti Dukung (Sebelum/Revisi 1/Revisi 2) -->
+          <!-- Histori Penjelasan & Bukti Dukung (Sebelum/Revisi 1) -->
           @php
             $hist = ($domainRecordsMap[$d->id] ?? collect());
             $base = $hist->filter(fn($r) => (string)$r->status !== 'revisi')->sortByDesc('id')->first();
             $rev1 = $hist->filter(fn($r) => (string)$r->status === 'revisi' && (int)($r->revisi_round ?? 0) === 1)->sortByDesc('id')->first();
-            $rev2 = $hist->filter(fn($r) => (string)$r->status === 'revisi' && (int)($r->revisi_round ?? 0) === 2)->sortByDesc('id')->first();
 
             $filesBase = $base ? $base->buktiDukung : collect();
             $filesR1   = $rev1 ? $rev1->buktiDukung : collect();
-            $filesR2   = $rev2 ? $rev2->buktiDukung : collect();
           @endphp
 
-          @if($base || $rev1 || $rev2)
+          @if($base || $rev1)
             <div class="mb-6">
               <div class="text-[10px] md:text-xs font-semibold text-(--muted) mb-3 uppercase tracking-wide">Histori Revisi</div>
               <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -238,29 +234,6 @@
                   @endif
                 </div>
 
-                {{-- Revisi 2 --}}
-                <div class="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 text-left">
-                  <div class="font-semibold text-(--text) text-xs md:text-sm mb-2 flex items-center gap-2">
-                    <i class="bi bi-arrow-return-left text-emerald-600"></i> Revisi 2
-                  </div>
-                  <div class="text-[10px] md:text-xs text-(--muted) mb-2 uppercase tracking-wide">Penjelasan</div>
-                  <div class="text-xs md:text-sm text-(--text) whitespace-pre-wrap text-left!">
-                    {{ trim((string)($rev2?->penjelasan ?? '')) !== '' ? $rev2->penjelasan : '-' }}
-                  </div>
-                  <div class="mt-4 text-[10px] md:text-xs text-(--muted) mb-2 uppercase tracking-wide">Bukti Dukung</div>
-                  @if($filesR2 && $filesR2->count() > 0)
-                    <div class="space-y-2">
-                      @foreach($filesR2 as $f)
-                        <a class="block text-[10px] md:text-xs text-emerald-600 hover:text-emerald-700 hover:underline truncate"
-                           href="{{ asset('storage/' . $f->file) }}" target="_blank" rel="noopener">
-                          <i class="bi bi-box-arrow-up-right me-1"></i>{{ $f->original_name ?: basename($f->file) }}
-                        </a>
-                      @endforeach
-                    </div>
-                  @else
-                    <div class="text-[11px] text-(--muted) italic">-</div>
-                  @endif
-                </div>
               </div>
             </div>
           @endif
@@ -375,23 +348,39 @@
 </div>
 
 <script>
-  // Custom Accordion Logic — auto-close lainnya + smooth scroll ke yang dibuka
+  function closeAccordion(id) {
+    const activeContent = document.getElementById(id);
+    const btn = document.querySelector(`[data-target="${id}"].btn-toggle-acc`);
+    if (!activeContent || activeContent.classList.contains('hidden')) return;
+    
+    activeContent.classList.add('hidden');
+    if (btn) {
+      const ico = btn.querySelector('i');
+      if (ico) ico.style.transform = '';
+      btn.innerHTML = btn.innerHTML.replace(/Tutup/, 'Buka');
+    }
+  }
+
   function toggleAccordion(id) {
     const activeContent = document.getElementById(id);
-    const icon = document.getElementById(`icon-${id}`);
     const isHidden = activeContent.classList.contains('hidden');
 
-    // Tutup semua accordion lain + reset semua icon
+    // Tutup semua accordion lain
     document.querySelectorAll('.group-expanded').forEach(el => {
-      el.classList.add('hidden');
-    });
-    document.querySelectorAll('.accordion-icon').forEach(el => {
-      el.classList.remove('rotate-180');
+      if (el.id && el.id !== id) {
+        closeAccordion(el.id);
+      }
     });
 
     if (isHidden) {
       activeContent.classList.remove('hidden');
-      if (icon) icon.classList.add('rotate-180');
+      
+      const btn = document.querySelector(`[data-target="${id}"].btn-toggle-acc`);
+      if (btn) {
+        const ico = btn.querySelector('i');
+        if (ico) ico.style.transform = 'rotate(180deg)';
+        btn.innerHTML = btn.innerHTML.replace(/Buka/, 'Tutup');
+      }
 
       // Scroll ke wrapper parent agar posisi POV stabil
       const card = activeContent.parentElement;
@@ -403,8 +392,35 @@
           window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
         }, 500);
       }
+    } else {
+      closeAccordion(id);
     }
   }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.lke-head-toggle').forEach(header => {
+      header.addEventListener('click', function (e) {
+        if (e.target.closest('.btn-toggle-acc')) return;
+        const id  = header.getAttribute('data-target');
+        toggleAccordion(id);
+      });
+      header.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          const id  = header.getAttribute('data-target');
+          toggleAccordion(id);
+        }
+      });
+    });
+
+    document.querySelectorAll('.btn-toggle-acc').forEach(btn => {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        const id = btn.getAttribute('data-target');
+        toggleAccordion(id);
+      });
+    });
+  });
 
   // Row Selection Logic for Revisi
   function selectRevisiKriteriaFromRow(rowEl) {

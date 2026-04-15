@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\BPS;
 
 use App\Http\Controllers\Controller;
+use App\Models\GlobalSetting;
 use App\Models\LembarKerjaEvaluasi;
 use App\Models\LkeRevisiRequest;
 use App\Models\Indikator;
@@ -187,10 +188,15 @@ class PenilaianController extends Controller
 
         $domainRecordsMap = $rawItems->groupBy('domain_id');
 
+        // Feature toggles
+        $revisiDokumenEnabled  = GlobalSetting::isEnabled('revisi_dokumen_enabled');
+        $interviewInputEnabled = GlobalSetting::isEnabled('interview_input_enabled');
+
         return view('bps.penilaian.show', compact(
-            'user', 'tahun', 'domains', 'items', 'beforeRevisiItems', 'domainRecordsMap', 'namaKegiatan', 
+            'user', 'tahun', 'domains', 'items', 'beforeRevisiItems', 'domainRecordsMap', 'namaKegiatan',
             'nomorRek', 'requestedDomainIds', 'revisedRequestMap', 'allScored', 'isLocked',
-            'revisiStatus', 'revisiCatatan', 'bpsLastMap'
+            'revisiStatus', 'revisiCatatan', 'bpsLastMap',
+            'revisiDokumenEnabled', 'interviewInputEnabled',
         ));
     }
 
@@ -351,45 +357,37 @@ class PenilaianController extends Controller
 
             if ($isRevisi) {
                 if (Schema::hasTable('lke_revisi_requests')) {
-                    // Satu input: catatan evaluasi / alasan revisi
+                    // Cek toggle revisi dokumen
+                    if (!GlobalSetting::isEnabled('revisi_dokumen_enabled')) {
+                        throw new \RuntimeException('Fitur revisi dokumen sedang dinonaktifkan.');
+                    }
+
                     $alasan = trim((string) ($validated['catatan_bps'] ?? ''));
                     if ($alasan === '') {
                         throw new \RuntimeException('Alasan revisi wajib diisi.');
                     }
-                    // Determine allowed round (max 2). Round 2 hanya boleh jika round 1 sudah revised.
+
+                    // Hanya 1 ronde revisi (max 1x)
                     $existing = LkeRevisiRequest::query()
                         ->where($baseWhere)
                         ->lockForUpdate()
                         ->get();
-                    $hasRev1 = $existing->where('round', 1)->where('status', 'revised')->isNotEmpty();
-                    $hasReq1 = $existing->where('round', 1)->where('status', 'requested')->isNotEmpty();
-                    $hasRev2 = $existing->where('round', 2)->where('status', 'revised')->isNotEmpty();
-                    $hasReq2 = $existing->where('round', 2)->where('status', 'requested')->isNotEmpty();
 
-                    if ($hasRev2) {
-                        throw new \RuntimeException('Revisi sudah mencapai batas maksimal (2 kali).');
+                    $hasReq1  = $existing->where('round', 1)->where('status', 'requested')->isNotEmpty();
+                    $hasRev1  = $existing->where('round', 1)->where('status', 'revised')->isNotEmpty();
+
+                    if ($hasRev1) {
+                        throw new \RuntimeException('Revisi dokumen sudah mencapai batas maksimal (1 kali). OPD telah menyelesaikan revisi.');
                     }
 
-                    $round = 1;
-                    if ($hasReq1) {
-                        $round = 1;
-                    } elseif ($hasRev1) {
-                        $round = 2;
-                    }
-                    // Jika client mencoba round 2 tapi round1 belum revised, tetap tolak.
-                    if ($roundFromClient === 2 && !$hasRev1) {
-                        throw new \RuntimeException('Revisi ke-2 hanya dapat dibuka setelah revisi pertama diselesaikan OPD.');
-                    }
-                    // Jika sudah ada request round2, tetap di round2
-                    if ($hasReq2) $round = 2;
-
+                    // Hanya round 1
                     LkeRevisiRequest::updateOrCreate(
-                        $baseWhere + ['round' => $round, 'status' => 'requested'],
+                        $baseWhere + ['round' => 1, 'status' => 'requested'],
                         [
-                            'bps_user_id' => (int) (Auth::id() ?? 0),
-                            'catatan' => $alasan,
+                            'bps_user_id'    => (int) (Auth::id() ?? 0),
+                            'catatan'        => $alasan,
                             'revised_lke_id' => null,
-                            'revised_at' => null,
+                            'revised_at'     => null,
                         ]
                     );
                 }
@@ -404,16 +402,52 @@ class PenilaianController extends Controller
             }
         });
 
-        $msg = $isRevisi ? 'Penilaian disimpan dan diminta revisi ke OPD.' : 'Penilaian berhasil disimpan.';
-        
+        $msg = $isRevisi ? 'Penilaian disimpan dan permintaan revisi dokumen dikirim ke OPD.' : 'Penilaian berhasil disimpan.';
+
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
-                'ok' => true,
-                'message' => $msg,
-                'is_revisi' => $isRevisi
+                'ok'       => true,
+                'message'  => $msg,
+                'is_revisi'=> $isRevisi
             ]);
         }
 
         return back()->with('success', $msg);
+    }
+
+    /**
+     * Simpan data hasil interview per indikator oleh BPS.
+     *
+     * Hanya aktif jika toggle `interview_input_enabled` = true.
+     * Menyimpan catatan_interview + nilai_interview ke record LKE indikator.
+     */
+    public function saveInterview(Request $request)
+    {
+        if (!GlobalSetting::isEnabled('interview_input_enabled')) {
+            return response()->json(['ok' => false, 'message' => 'Fitur input hasil interview tidak aktif.'], 403);
+        }
+
+        $validated = $request->validate([
+            'lke_id'            => ['required', 'integer', 'exists:lembar_kerja_evaluasi,id'],
+            'catatan_interview' => ['nullable', 'string', 'max:2000'],
+            'nilai_interview'   => ['nullable', 'integer', 'min:1', 'max:5'],
+        ]);
+
+        $lke = LembarKerjaEvaluasi::findOrFail($validated['lke_id']);
+
+        if ($lke->is_locked_bps) {
+            return response()->json(['ok' => false, 'message' => 'Paket LKE sudah dikunci, tidak bisa diubah.'], 403);
+        }
+
+        $lke->update([
+            'catatan_interview' => $validated['catatan_interview'] ?? null,
+            'nilai_interview'   => isset($validated['nilai_interview']) ? (int) $validated['nilai_interview'] : null,
+        ]);
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json(['ok' => true, 'message' => 'Data interview tersimpan.']);
+        }
+
+        return back()->with('success', 'Data interview tersimpan.');
     }
 }

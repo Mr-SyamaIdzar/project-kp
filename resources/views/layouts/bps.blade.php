@@ -45,6 +45,8 @@
   </div>
 </div>
 
+@include('partials._custom-alert')
+
 <!-- OFFCANVAS (Mobile/Tablet) Vanilla implementation -->
 <div id="mobileSidebarOverlay" class="fixed inset-0 bg-black/50 z-40 hidden transition-opacity" onclick="toggleMobileSidebar()"></div>
 <div id="mobileSidebar" class="fixed inset-y-0 left-0 w-72 bg-(--offcanvas-bg) text-(--offcanvas-text) z-50 transform -translate-x-full transition-transform duration-300 shadow-xl overflow-y-auto lg:hidden">

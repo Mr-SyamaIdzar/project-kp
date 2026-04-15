@@ -60,7 +60,7 @@
               <a href="{{ route('tahun.edit', $t->id) }}" class="px-3 py-1.5 bg-transparent border border-cyan-500/50 text-cyan-500 hover:bg-cyan-500 hover:text-white rounded-xl transition-colors flex items-center gap-2 text-xs md:text-sm">
                 <i class="bi bi-pencil-square"></i> Edit
               </a>
-              <form action="{{ route('tahun.destroy', $t->id) }}" method="POST" class="inline-block" onsubmit="return confirm('Yakin hapus tahun {{ $t->tahun }}?')">
+              <form action="{{ route('tahun.destroy', $t->id) }}" method="POST" class="inline-block form-delete" data-message="Yakin hapus tahun {{ $t->tahun }}?">
                 @csrf
                 @method('DELETE')
                 <button type="submit" class="px-2 md:px-3 py-1 md:py-1.5 bg-transparent border border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-colors flex items-center gap-2 text-xs md:text-sm">
@@ -105,6 +105,19 @@
     if (e.target && e.target.name === 'q') {
       e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
     }
+  });
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.form-delete').forEach(form => {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const msg = form.getAttribute('data-message');
+        if (typeof window.showConfirm === 'function') {
+           window.showConfirm(msg, function() { form.submit(); }, 'Konfirmasi', 'warning', 'Ya, Hapus');
+        } else {
+           if (confirm(msg)) form.submit();
+        }
+      });
+    });
   });
 </script>
 @endsection

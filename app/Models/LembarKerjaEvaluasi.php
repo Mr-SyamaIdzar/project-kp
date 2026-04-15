@@ -28,7 +28,8 @@ class LembarKerjaEvaluasi extends Model
         'user_id','tahun_id','domain_id','kriteria_id',
         'nama_kegiatan','nomor_rekomendasi','nilai','penjelasan','status',
         'revisi_round',
-        'penilaian_bps', 'catatan_bps', 'is_revisi_bps', 'is_locked_bps'
+        'penilaian_bps', 'catatan_bps', 'is_revisi_bps', 'is_locked_bps',
+        'catatan_interview', 'nilai_interview',
     ];
 
     /**

@@ -109,14 +109,16 @@
                 <i class="bi bi-eye"></i> <span class="hidden md:inline">Detail</span>
               </a>
 
-              <form action="{{ route('lke.destroy') }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin menghapus seluruh paket LKE ini? Seluruh data evaluasi dan file bukti dukung akan dihapus permanen.')" class="inline">
+              <form id="delete-lke-{{ $loop->iteration }}" action="{{ route('lke.destroy') }}" method="POST" class="inline">
                 @csrf
                 @method('DELETE')
                 <input type="hidden" name="user_id" value="{{ $row->user_id }}">
                 <input type="hidden" name="tahun_id" value="{{ $row->tahun_id }}">
                 <input type="hidden" name="nama_kegiatan" value="{{ $row->nama_kegiatan }}">
                 <input type="hidden" name="nomor_rekomendasi" value="{{ $row->nomor_rekomendasi }}">
-                <button type="submit" class="px-2 md:px-3 py-1 md:py-1.5 bg-transparent border border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-colors inline-flex items-center gap-2 text-xs md:text-sm">
+                <button type="button"
+                  onclick="showConfirm('Apakah Anda yakin ingin menghapus seluruh paket LKE ini? Seluruh data evaluasi dan file bukti dukung akan dihapus permanen.', function(){ document.getElementById('delete-lke-{{ $loop->iteration }}').submit(); }, 'Hapus Paket LKE', 'warning')"
+                  class="px-2 md:px-3 py-1 md:py-1.5 bg-transparent border border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-colors inline-flex items-center gap-2 text-xs md:text-sm">
                   <i class="bi bi-trash"></i> <span class="hidden md:inline">Hapus</span>
                 </button>
               </form>

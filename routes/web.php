@@ -44,6 +44,7 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->group(function () {
     Route::get('/master-menu', [MasterMenuController::class, 'index'])->name('master-menu.index');
     Route::put('/master-menu', [MasterMenuController::class, 'update'])->name('master-menu.update');
     Route::put('/master-menu/informasi', [MasterMenuController::class, 'updateInformasi'])->name('master-menu.updateInformasi');
+    Route::put('/master-menu/feature-toggles', [MasterMenuController::class, 'updateFeatureToggles'])->name('master-menu.updateFeatureToggles');
 
     // Menu Nilai Akhir OPD (terpisah)
     Route::get('/penilaian-akhir', [PenilaianAkhirController::class, 'index'])->name('penilaian-akhir.index');
@@ -94,4 +95,5 @@ Route::middleware(['auth', 'role:bps'])->prefix('bps')->name('bps.')->group(func
     Route::post('/penilaian/revisi-targets', [BpsPenilaianController::class, 'updateRevisiTargets'])->name('penilaian.revisi-targets');
     Route::post('/penilaian/evaluasi', [BpsPenilaianController::class, 'evaluasiLke'])->name('penilaian.evaluasi');
     Route::post('/penilaian/finalize', [BpsPenilaianController::class, 'finalize'])->name('penilaian.finalize');
+    Route::post('/penilaian/interview', [BpsPenilaianController::class, 'saveInterview'])->name('penilaian.interview');
 });

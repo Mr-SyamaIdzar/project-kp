@@ -146,10 +146,14 @@
         }
 
         const username = form.getAttribute('data-username') || 'user';
-        showToast(`Konfirmasi: hapus user "${username}"?`, 'warning');
-
-        const ok = confirm(`Yakin hapus user "${username}"?`);
-        if(!ok) e.preventDefault();
+        const msg = `Yakin hapus user "${username}"?`;
+        
+        e.preventDefault();
+        if (typeof window.showConfirm === 'function') {
+           window.showConfirm(msg, function() { form.submit(); }, 'Konfirmasi', 'warning', 'Ya, Hapus');
+        } else {
+           if (confirm(msg)) form.submit();
+        }
       });
     });
   });

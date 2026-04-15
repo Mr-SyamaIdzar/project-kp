@@ -17,13 +17,13 @@
 
 {{-- Flash messages --}}
 @if(session('success'))
-  <div class="bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 rounded-2xl px-5 py-3 mb-6 text-xs md:text-sm flex items-center gap-3">
+  <div id="flash-success" class="bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 rounded-2xl px-5 py-3 mb-6 text-xs md:text-sm flex items-center gap-3">
     <i class="bi bi-check-circle-fill shrink-0"></i>
     <span>{{ session('success') }}</span>
   </div>
 @endif
 @if(session('failed'))
-  <div class="bg-red-500/10 border border-red-500/30 text-red-500 rounded-2xl px-5 py-3 mb-6 text-xs md:text-sm flex items-center gap-3">
+  <div id="flash-failed" class="bg-red-500/10 border border-red-500/30 text-red-500 rounded-2xl px-5 py-3 mb-6 text-xs md:text-sm flex items-center gap-3">
     <i class="bi bi-exclamation-circle-fill shrink-0"></i>
     <span>{{ session('failed') }}</span>
   </div>
@@ -85,6 +85,86 @@
     </form>
   </div>
 @endif
+
+{{-- ===== SECTION 1.5: FEATURE TOGGLES ===== --}}
+<div class="font-semibold text-sm md:text-base text-(--text) mb-3 mt-4 flex items-center gap-2">
+  <i class="bi bi-toggles2 text-(--brand)"></i> Toggle Fitur
+</div>
+
+<div class="bg-(--panel) border border-(--border-strong) rounded-2xl p-6 mb-6">
+  <div class="text-(--muted) text-xs md:text-sm mb-5">
+    Aktifkan atau nonaktifkan fitur secara global. Perubahan langsung berlaku untuk role BPS.
+  </div>
+
+  <form method="POST" action="{{ route('master-menu.updateFeatureToggles') }}">
+    @csrf
+    @method('PUT')
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+
+      {{-- Toggle: Revisi Dokumen --}}
+      <div class="bg-(--sidebar-bg) border border-(--border-strong) rounded-xl p-5">
+        <div class="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <div class="font-semibold text-sm text-(--text) flex items-center gap-2">
+              <i class="bi bi-file-earmark-diff text-amber-500"></i> Revisi Dokumen
+            </div>
+            <div class="text-[10px] md:text-xs text-(--muted) mt-1">
+              BPS dapat meminta revisi dokumen ke OPD (maks. 1x).
+            </div>
+          </div>
+          {{-- Toggle switch --}}
+          <label class="relative inline-flex items-center cursor-pointer shrink-0" for="toggle-revisi-dokumen">
+            <input type="checkbox" id="toggle-revisi-dokumen" name="revisi_dokumen_enabled" value="1"
+              class="sr-only peer" {{ $revisiDokumenEnabled ? 'checked' : '' }}>
+            <div class="w-11 h-6 bg-gray-400 peer-focus:ring-2 peer-focus:ring-(--brand)/30 rounded-full peer
+              peer-checked:after:translate-x-full peer-checked:bg-(--brand)
+              after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+              after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+          </label>
+        </div>
+        <div class="text-[10px] md:text-xs font-semibold px-2 py-1 rounded-lg inline-flex items-center gap-1
+          {{ $revisiDokumenEnabled ? 'bg-emerald-500/10 text-emerald-600' : 'bg-slate-500/10 text-(--muted)' }}">
+          <i class="bi {{ $revisiDokumenEnabled ? 'bi-check-circle' : 'bi-x-circle' }}"></i>
+          {{ $revisiDokumenEnabled ? 'Aktif' : 'Nonaktif' }}
+        </div>
+      </div>
+
+      {{-- Toggle: Input Hasil Interview --}}
+      <div class="bg-(--sidebar-bg) border border-(--border-strong) rounded-xl p-5">
+        <div class="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <div class="font-semibold text-sm text-(--text) flex items-center gap-2">
+              <i class="bi bi-mic text-blue-500"></i> Input Hasil Interview
+            </div>
+            <div class="text-[10px] md:text-xs text-(--muted) mt-1">
+              BPS dapat mengisi catatan dan nilai hasil interview per indikator.
+            </div>
+          </div>
+          {{-- Toggle switch --}}
+          <label class="relative inline-flex items-center cursor-pointer shrink-0" for="toggle-interview">
+            <input type="checkbox" id="toggle-interview" name="interview_input_enabled" value="1"
+              class="sr-only peer" {{ $interviewInputEnabled ? 'checked' : '' }}>
+            <div class="w-11 h-6 bg-gray-400 peer-focus:ring-2 peer-focus:ring-(--brand)/30 rounded-full peer
+              peer-checked:after:translate-x-full peer-checked:bg-(--brand)
+              after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+              after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+          </label>
+        </div>
+        <div class="text-[10px] md:text-xs font-semibold px-2 py-1 rounded-lg inline-flex items-center gap-1
+          {{ $interviewInputEnabled ? 'bg-emerald-500/10 text-emerald-600' : 'bg-slate-500/10 text-(--muted)' }}">
+          <i class="bi {{ $interviewInputEnabled ? 'bi-check-circle' : 'bi-x-circle' }}"></i>
+          {{ $interviewInputEnabled ? 'Aktif' : 'Nonaktif' }}
+        </div>
+      </div>
+    </div>
+
+    <button type="submit"
+      class="px-5 md:px-6 py-2 md:py-2.5 bg-(--brand) text-white rounded-xl hover:opacity-90 flex items-center gap-2 transition-opacity font-medium text-xs md:text-sm">
+      <i class="bi bi-save2"></i> Simpan Toggle Fitur
+    </button>
+  </form>
+</div>
 
 {{-- ===== SECTION 2: EDIT KOLOM INFORMASI PER ROLE ===== --}}
 <div class="font-semibold text-sm md:text-base text-(--text) mb-3 mt-2 flex items-center gap-2">

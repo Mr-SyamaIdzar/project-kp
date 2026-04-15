@@ -35,8 +35,10 @@ class DashboardController extends Controller
             ->groupBy('user_id', 'tahun_id', 'nama_kegiatan', 'nomor_rekomendasi')
             ->get();
 
-        $totalFinal = $lkes->count();
-        $masukPenilaian = $lkes->where('cnt_scored', 0)->count();
+        $totalMasterIndicators = \App\Models\Indikator::count();
+        $totalFinalAll = $lkes->count();
+        $masukPenilaian = $lkes->where('cnt_scored', '>=', $totalMasterIndicators)->count();
+        $totalFinal = $totalFinalAll - $masukPenilaian;
 
         $informasi = RoleInformasi::forRole('bps');
 
@@ -97,8 +99,10 @@ class DashboardController extends Controller
             ->groupBy('user_id', 'tahun_id', 'nama_kegiatan', 'nomor_rekomendasi')
             ->get();
 
-        $totalFinal = $lkes->count();
-        $masukPenilaian = $lkes->where('cnt_scored', 0)->count();
+        $totalMasterIndicators = \App\Models\Indikator::count();
+        $totalFinalAll = $lkes->count();
+        $masukPenilaian = $lkes->where('cnt_scored', '>=', $totalMasterIndicators)->count();
+        $totalFinal = $totalFinalAll - $masukPenilaian;
 
         return response()->json([
             'ok' => true,
@@ -110,7 +114,7 @@ class DashboardController extends Controller
                 'total_opd' => $totalOpd,
                 'total_draft' => $totalDraft,
                 'total_final' => $totalFinal,
-                'masuk_penilaian' => $totalFinal,
+                'masuk_penilaian' => $masukPenilaian,
             ],
         ]);
     }

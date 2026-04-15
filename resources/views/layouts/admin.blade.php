@@ -45,6 +45,8 @@
   </div>
 </div>
 
+@include('partials._custom-alert')
+
 <!-- OFFCANVAS (Mobile/Tablet) Vanilla implementation since BS is removed -->
 <!-- Add AlpineJS or simple toggle logic for mobile sidebar in the future if needed,
      For now, we'll hide it and let user implement JS toggle or we extract more later. -->

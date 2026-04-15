@@ -25,7 +25,7 @@
     </div>
     <div class="md:col-span-4 lg:col-span-4">
       <div class="text-[10px] md:text-xs font-semibold text-(--muted) uppercase tracking-wider mb-1">Nomor Rekomendasi</div>
-      <div class="font-mono text-xs md:text-sm text-(--text) mt-1 wrap-break-word">{{ $nomorRek }}</div>
+      <div class="font-mono text-xs md:text-sm text-(--text) mt-1 break-all overflow-wrap-anywhere">{{ $nomorRek }}</div>
     </div>
 
     <div class="md:col-span-12">

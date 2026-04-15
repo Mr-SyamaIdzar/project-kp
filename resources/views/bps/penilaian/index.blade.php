@@ -1,17 +1,17 @@
 @extends('layouts.bps')
 
 @php
-  $title = 'Penilaian LKE';
-  $header = 'Penilaian LKE';
-  $subheader = 'Filter OPD, pilih tahun export, lalu export ke Excel.';
+  $title = 'LKE yang sudah dinilai';
+  $header = 'LKE yang sudah dinilai';
+  $subheader = 'Filter OPD, pilih tahun, lalu export ke Excel.';
 @endphp
 
 @section('content')
 
 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
   <div>
-    <div class="font-bold text-lg md:text-xl">Lembar Kerja Evaluasi</div>
-    <div class="text-(--muted) text-xs md:text-sm mt-0.5">Filter OPD, pilih tahun export, lalu export ke Excel.</div>
+    <div class="font-bold text-lg md:text-xl">LKE yang sudah dinilai</div>
+    <div class="text-(--muted) text-xs md:text-sm mt-0.5">Filter OPD, pilih tahun, lalu export ke Excel.</div>
   </div>
 </div>
 

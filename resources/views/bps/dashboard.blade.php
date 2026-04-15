@@ -57,20 +57,20 @@
 
   <div class="bg-(--panel) shadow-sm rounded-2xl p-6 border border-(--border-strong) transition-all hover:-translate-y-1 hover:shadow-md">
     <div class="flex items-center justify-between mb-4">
-      <div class="text-(--muted) text-xs md:text-sm font-medium">LKE Final</div>
+      <div class="text-(--muted) text-xs md:text-sm font-medium">LKE Siap Dinilai</div>
       <i class="bi bi-check2-circle text-xl md:text-2xl text-(--muted) opacity-50"></i>
     </div>
     <div class="font-bold text-2xl md:text-3xl text-(--text) mb-1" data-dash-bps-total-final>{{ $totalFinal }}</div>
-    <div class="text-(--muted) text-[10px] md:text-xs">Sudah dikumpulkan</div>
+    <div class="text-(--muted) text-[10px] md:text-xs">Siap dinilai</div>
   </div>
 
   <div class="bg-(--panel) shadow-sm rounded-2xl p-6 border border-(--border-strong) transition-all hover:-translate-y-1 hover:shadow-md">
     <div class="flex items-center justify-between mb-4">
-      <div class="text-(--muted) text-xs md:text-sm font-medium">LKE Masuk Penilaian</div>
+      <div class="text-(--muted) text-xs md:text-sm font-medium">LKE Dinilai</div>
       <i class="bi bi-clipboard-check text-xl md:text-2xl text-(--muted) opacity-50"></i>
     </div>
     <div class="font-bold text-2xl md:text-3xl text-(--text) mb-1" data-dash-bps-masuk-penilaian>{{ $masukPenilaian }}</div>
-    <div class="text-(--muted) text-[10px] md:text-xs">Siap dinilai</div>
+    <div class="text-(--muted) text-[10px] md:text-xs">Sudah dinilai</div>
   </div>
 </div>
 

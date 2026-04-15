@@ -107,7 +107,8 @@
             <div class="flex justify-center">
               <form method="POST"
                     action="{{ route('deadlines.destroy', $t->id) }}"
-                    onsubmit="return confirm('Yakin hapus deadline tahun {{ $t->tahun }}?')">
+                    class="form-delete"
+                    data-message="Yakin hapus deadline tahun {{ $t->tahun }}?">
                 @csrf
                 @method('DELETE')
                 <button class="px-2 md:px-3 py-1 md:py-1.5 bg-transparent border border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-colors flex items-center gap-2 text-xs md:text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-red-500" type="submit" {{ !$deadline ? 'disabled' : '' }}>
@@ -152,6 +153,20 @@
     if(e.target && e.target.name === 'q'){
       e.target.value = e.target.value.replace(/\D/g,'').slice(0,4);
     }
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.form-delete').forEach(form => {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const msg = form.getAttribute('data-message');
+        if (typeof window.showConfirm === 'function') {
+           window.showConfirm(msg, function() { form.submit(); }, 'Konfirmasi', 'warning', 'Ya, Hapus');
+        } else {
+           if (confirm(msg)) form.submit();
+        }
+      });
+    });
   });
 </script>
 @endsection

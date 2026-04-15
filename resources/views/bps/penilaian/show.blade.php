@@ -19,16 +19,17 @@
         <i class="bi bi-lock-fill"></i> TERKUNCI / FINAL
       </span>
     @else
-      <form action="{{ route('bps.penilaian.finalize') }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin memfinalisasi penilaian ini? Setelah difinalisasi, OPD tidak dapat melakukan revisi lagi.')">
+      <form action="{{ route('bps.penilaian.finalize') }}" method="POST" id="form-finalisasi">
         @csrf
         <input type="hidden" name="user_id" value="{{ $user->id }}">
         <input type="hidden" name="tahun_id" value="{{ $tahun->id }}">
         <input type="hidden" name="nama_kegiatan" value="{{ $namaKegiatan }}">
         <input type="hidden" name="nomor_rekomendasi" value="{{ $nomorRek }}">
-        <button type="submit"
+        <button type="button"
           id="btn-finalisasi"
           data-total-domains="{{ $domains->count() }}"
           @if(!$allScored) disabled title="Semua indikator harus dinilai terlebih dahulu" @endif
+          onclick="showConfirm('Apakah Anda yakin ingin memfinalisasi penilaian ini? Setelah difinalisasi, BPS tidak dapat mengubah penilaian lagi.', function(){ document.getElementById('form-finalisasi').submit(); }, 'Finalisasi Penilaian', 'warning')"
           class="px-3 md:px-4 py-1.5 md:py-2 bg-(--brand) text-white rounded-xl hover:bg-(--brand)/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors text-xs md:text-sm font-semibold shadow-sm">
           <i class="bi bi-check-all text-lg"></i> Finalisasikan Penilaian
         </button>
@@ -53,7 +54,7 @@
     </div>
     <div class="md:col-span-4">
       <div class="text-[10px] md:text-xs font-semibold text-(--muted) uppercase tracking-wider mb-1">Nomor Rekomendasi</div>
-      <div class="font-mono text-xs md:text-sm text-(--text) mt-1 wrap-break-word">{{ $nomorRek }}</div>
+      <div class="font-mono text-xs md:text-sm text-(--text) mt-1 break-all overflow-wrap-anywhere">{{ $nomorRek }}</div>
     </div>
     <div class="md:col-span-12">
       <div class="text-[10px] md:text-xs font-semibold text-(--muted) uppercase tracking-wider mb-1">Nama Kegiatan</div>
@@ -180,20 +181,18 @@
             </div>
           </div>
 
-          {{-- Histori Penjelasan & Bukti Dukung (Sebelum/Revisi 1/Revisi 2) --}}
+          {{-- Histori Penjelasan & Bukti Dukung --}}
           <div>
             @php
               $hist = ($domainRecordsMap[$d->id] ?? collect());
               $base = $hist->filter(fn($r) => (string)$r->status !== 'revisi')->sortByDesc('id')->first();
               $rev1 = $hist->filter(fn($r) => (string)$r->status === 'revisi' && (int)($r->revisi_round ?? 0) === 1)->sortByDesc('id')->first();
-              $rev2 = $hist->filter(fn($r) => (string)$r->status === 'revisi' && (int)($r->revisi_round ?? 0) === 2)->sortByDesc('id')->first();
 
               $filesBase = $base ? $base->buktiDukung : collect();
               $filesR1   = $rev1 ? $rev1->buktiDukung : collect();
-              $filesR2   = $rev2 ? $rev2->buktiDukung : collect();
             @endphp
 
-            @if($base || $rev1 || $rev2)
+            @if($base || $rev1)
               <div class="text-xs md:text-sm font-semibold text-(--muted) mb-3">Bukti Dukung & Penjelasan (Histori)</div>
               <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {{-- Sebelum --}}
@@ -239,28 +238,6 @@
                     <div class="text-[11px] text-(--muted) italic">-</div>
                   @endif
                 </div>
-
-                {{-- Revisi 2 --}}
-                <div class="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4">
-                  <div class="font-semibold text-(--text) text-xs md:text-sm mb-2 flex items-center gap-2">
-                    <i class="bi bi-arrow-return-left text-emerald-600"></i> Revisi 2
-                  </div>
-                  <div class="text-[10px] md:text-xs text-(--muted) mb-2 uppercase tracking-wide">Penjelasan</div>
-                  <div class="text-xs md:text-sm text-(--text) whitespace-pre-wrap text-left">{{ trim((string)($rev2?->penjelasan ?? '')) !== '' ? $rev2->penjelasan : '-' }}</div>
-                  <div class="mt-4 text-[10px] md:text-xs text-(--muted) mb-2 uppercase tracking-wide">Bukti Dukung</div>
-                  @if($filesR2 && $filesR2->count() > 0)
-                    <div class="space-y-2">
-                      @foreach($filesR2 as $f)
-                        <a class="block text-[10px] md:text-xs text-emerald-600 hover:text-emerald-700 hover:underline truncate"
-                           href="{{ asset('storage/' . $f->file) }}" target="_blank" rel="noopener">
-                          <i class="bi bi-box-arrow-up-right me-1"></i>{{ $f->original_name ?: basename($f->file) }}
-                        </a>
-                      @endforeach
-                    </div>
-                  @else
-                    <div class="text-[11px] text-(--muted) italic">-</div>
-                  @endif
-                </div>
               </div>
             @else
               <div class="text-(--muted) text-xs md:text-sm italic">Belum ada data.</div>
@@ -290,11 +267,21 @@
                 <input type="hidden" name="action" id="action-{{ $lke->id }}" value="simpan">
                 <input type="hidden" name="round" id="round-{{ $lke->id }}" value="">
 
+                {{-- Definisi label kontekstual: jika tidak ada revisi, tampilkan "Akhir" --}}
+                @php
+                  $r1 = (string) (($revisiStatus[$d->id][1] ?? '') ?: '');
+                  $r1Done = $r1 === 'revised';
+                  $r1Req  = $r1 === 'requested';
+                  $hasRevisiDomain = $r1 !== '' || $r1Done || $r1Req;
+                  $labelNilai   = $hasRevisiDomain ? 'Nilai Dokumen' : 'Nilai Dokumen Akhir';
+                  $labelCatatan = $hasRevisiDomain ? 'Catatan Dokumen' : 'Catatan Dokumen Akhir';
+                @endphp
+
                 {{-- Score --}}
                 <div class="mb-5">
-                  <label class="block text-xs md:text-sm font-semibold text-(--text) mb-3">
-                    Nilai Indikator (1–5) <span class="text-red-500">*</span>
-                  </label>
+                  <div class="block text-xs md:text-sm font-semibold text-(--text) mb-3">
+                    {{ $labelNilai }} (1–5) <span class="text-red-500">*</span>
+                  </div>
                   @if($lastBps && !is_null($lastBps->penilaian_bps))
                     <div class="text-[10px] md:text-xs text-(--muted) mb-2">
                       Nilai terakhir dari BPS: <b class="text-(--text)">{{ (int) $lastBps->penilaian_bps }}</b>
@@ -324,10 +311,10 @@
                 </div>
 
                 {{-- Note --}}
-                <div class="mb-5">
+                <div class="mb-5" id="label-catatan-wrap-{{ $lke->id }}">
                   <label id="label-catatan-{{ $lke->id }}" class="block text-xs md:text-sm font-semibold text-(--text) mb-2">
-                    Catatan Evaluasi / Alasan Revisi
-                    <span class="text-[10px] font-normal text-(--muted) ml-1">(dipakai saat simpan penilaian atau saat minta revisi)</span>
+                    {{ $labelCatatan }} / Alasan Revisi Dokumen
+                    <span class="text-[10px] font-normal text-(--muted) ml-1">(dipakai saat simpan penilaian atau saat minta revisi dokumen)</span>
                   </label>
                   <textarea name="catatan_bps" id="catatan-{{ $lke->id }}" rows="3"
                     class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-(--brand) focus:border-transparent transition-all text-xs md:text-sm leading-relaxed resize-none placeholder:text-(--muted) disabled:opacity-70"
@@ -337,91 +324,130 @@
                     data-bps-catatan-eval>{{ $lastBps?->catatan_bps ?? '' }}</textarea>
                 </div>
 
-                @php
-                  $r1 = (string) (($revisiStatus[$d->id][1] ?? '') ?: '');
-                  $r2 = (string) (($revisiStatus[$d->id][2] ?? '') ?: '');
-                  $r1Done = $r1 === 'revised';
-                  $r2Done = $r2 === 'revised';
-                  $r1Req  = $r1 === 'requested';
-                  $r2Req  = $r2 === 'requested';
-                  $canOpenR2 = $r1Done;
-                @endphp
+                {{-- Revisi Dokumen (1x, kondisional toggle) --}}
+                @if($revisiDokumenEnabled)
+                  <div class="pt-4 border-t border-(--border-strong) space-y-3">
+                    <div class="text-xs md:text-sm font-semibold text-(--text) flex items-center gap-2">
+                      <i class="bi bi-file-earmark-diff text-amber-500"></i> Revisi Dokumen
+                      <span class="text-[10px] font-normal text-(--muted)">(maks. 1x)</span>
+                    </div>
 
-                {{-- Revisi Accordion --}}
-                <div class="pt-4 border-t border-(--border-strong) space-y-3">
-                  <div class="text-xs md:text-sm font-semibold text-(--text) flex items-center gap-2">
-                    <i class="bi bi-arrow-return-left text-amber-500"></i> Permintaan Revisi (maks. 2x)
-                  </div>
+                    @php
+                      $saved1 = trim((string)($revisiCatatan[$d->id][1] ?? ''));
+                    @endphp
 
-                  {{-- Revisi 1 --}}
-                  <div class="bg-amber-500/5 border border-amber-500/20 rounded-xl overflow-hidden">
-                    <div class="p-4 flex items-start justify-between gap-3">
-                      <div>
-                        <div class="font-bold text-(--text) text-sm">Revisi 1</div>
-                        <div class="text-[10px] text-(--muted) mt-0.5" data-bps-rev-status data-round="1">
-                          @if($r1Done) Selesai (OPD sudah revisi) @elseif($r1Req) Menunggu OPD @else Belum diminta @endif
+                    <div class="bg-amber-500/5 border border-amber-500/20 rounded-xl overflow-hidden">
+                      <div class="p-4 flex items-start justify-between gap-3">
+                        <div>
+                          <div class="font-bold text-(--text) text-sm">Revisi Dokumen</div>
+                          <div class="text-[10px] text-(--muted) mt-0.5 mb-3" data-bps-rev-status data-round="1">
+                            @if($r1Done) Selesai (OPD sudah revisi) @elseif($r1Req) Menunggu OPD @else Belum diminta @endif
+                          </div>
+                          
+                          <div class="mb-3">
+                            <div class="text-[10px] md:text-xs font-semibold text-(--text) mb-2">Nilai Revisi yang Diberikan (BPS) <span class="text-red-500">*</span></div>
+                            <div class="flex flex-wrap gap-1.5 md:gap-2">
+                              @for($i = 1; $i <= 5; $i++)
+                                @php $isChecked = (int)($lastBps?->penilaian_bps ?? 0) === $i; @endphp
+                                <label class="flex items-center justify-center cursor-pointer w-8 h-8 border rounded-lg transition-all text-center font-bold text-xs md:text-sm
+                                  {{ $isChecked
+                                    ? 'border-amber-500 bg-amber-500/10 text-amber-600'
+                                    : 'border-(--border-strong) bg-(--sidebar-bg) text-(--muted) hover:border-amber-400/40 hover:bg-black/5' }}
+                                  {{ $isLocked ? 'pointer-events-none opacity-80' : '' }}">
+                                  <input type="radio" name="penilaian_bps" value="{{ $i }}"
+                                    {{ $isChecked ? 'checked' : '' }}
+                                    class="sr-only revisi-score-radio"
+                                    {{ $isLocked ? 'disabled' : '' }}
+                                    data-lke-id="{{ $lke->id }}"
+                                    data-bps-score-radio>
+                                  {{ $i }}
+                                </label>
+                              @endfor
+                            </div>
+                            <div class="text-[9px] md:text-[10px] text-(--muted) mt-1"><i class="bi bi-info-circle"></i> Pilihan Anda akan sama dengan Nilai Dokumen di atas.</div>
+                          </div>
+                          
                         </div>
+                        <button type="button"
+                          {{ ($isLocked || $r1Done) ? 'disabled' : '' }}
+                          data-lke-id="{{ $lke->id }}"
+                          data-round="1"
+                          data-bps-btn-revisi
+                          class="inline-flex items-center gap-2 px-4 py-2 rounded-xl border font-semibold text-xs md:text-sm transition-all
+                            {{ $r1Req ? 'bg-amber-500 border-amber-500 text-white hover:bg-amber-600' : 'bg-transparent border-amber-500/40 text-amber-600 hover:bg-amber-500/10' }}
+                            {{ ($isLocked || $r1Done) ? 'opacity-50 cursor-not-allowed' : '' }}">
+                          <i class="bi bi-send"></i> {{ $r1Req ? 'Kirim Ulang' : 'Minta Revisi Dokumen' }}
+                        </button>
                       </div>
-                      <button type="button"
-                        {{ ($isLocked || $r1Done) ? 'disabled' : '' }}
-                        data-lke-id="{{ $lke->id }}"
-                        data-round="1"
-                        data-bps-btn-revisi
-                        class="inline-flex items-center gap-2 px-4 py-2 rounded-xl border font-semibold text-xs md:text-sm transition-all
-                          {{ $r1Req ? 'bg-amber-500 border-amber-500 text-white hover:bg-amber-600' : 'bg-transparent border-amber-500/40 text-amber-600 hover:bg-amber-500/10' }}
-                          {{ ($isLocked || $r1Done) ? 'opacity-50 cursor-not-allowed' : '' }}">
-                        <i class="bi bi-send"></i> {{ $r1Req ? 'Kirim Ulang' : 'Minta Revisi 1' }}
-                      </button>
-                    </div>
-                    <div class="px-4 pb-4 text-xs md:text-sm text-(--muted) leading-relaxed" data-bps-rev-saved data-round="1">
-                      @php $saved1 = trim((string)($revisiCatatan[$d->id][1] ?? '')); @endphp
-                      <span data-bps-rev-saved-prefix>
-                        {{ $saved1 !== '' ? 'Alasan tersimpan:' : 'Isi alasan revisi di textarea di atas, lalu klik tombol “Minta Revisi 1”.' }}
-                      </span>
-                      <span class="text-(--text) font-semibold block mt-1 bg-black/5 dark:bg-white/5 p-3 rounded-lg border border-(--border-strong)" data-bps-rev-saved-text>{{ $saved1 }}</span>
-                      @if($r1Done)
-                        <div class="mt-2 text-[10px] md:text-xs">Revisi 1 sudah selesai, tidak dapat diubah lagi.</div>
-                      @endif
+                      <div class="px-4 pb-4 text-xs md:text-sm text-(--muted) leading-relaxed" data-bps-rev-saved data-round="1">
+                        <span data-bps-rev-saved-prefix>
+                          {{ $saved1 !== '' ? 'Alasan tersimpan:' : 'Isi alasan di textarea di atas, lalu klik "Minta Revisi Dokumen".' }}
+                        </span>
+                        <span class="text-(--text) font-semibold block mt-1 bg-black/5 dark:bg-white/5 p-3 rounded-lg border border-(--border-strong)" data-bps-rev-saved-text>{{ $saved1 }}</span>
+                        @if($r1Done)
+                          <div class="mt-2 text-[10px] md:text-xs text-emerald-600">Revisi dokumen sudah selesai. OPD telah melakukan revisi.</div>
+                        @endif
+                      </div>
                     </div>
                   </div>
-
-                  {{-- Revisi 2 --}}
-                  <div class="bg-amber-500/5 border border-amber-500/20 rounded-xl overflow-hidden {{ $canOpenR2 ? '' : 'opacity-60' }}" data-bps-rev-wrap data-round="2">
-                    <div class="p-4 flex items-start justify-between gap-3">
-                      <div>
-                        <div class="font-bold text-(--text) text-sm">Revisi 2</div>
-                        <div class="text-[10px] text-(--muted) mt-0.5" data-bps-rev-status data-round="2">
-                          @if(!$canOpenR2) Kunci: selesaikan revisi 1 dulu
-                          @elseif($r2Done) Selesai (OPD sudah revisi)
-                          @elseif($r2Req) Menunggu OPD
-                          @else Belum diminta @endif
-                        </div>
-                      </div>
-                      <button type="button"
-                        {{ ($isLocked || !$canOpenR2 || $r2Done) ? 'disabled' : '' }}
-                        data-lke-id="{{ $lke->id }}"
-                        data-round="2"
-                        data-bps-btn-revisi
-                        class="inline-flex items-center gap-2 px-4 py-2 rounded-xl border font-semibold text-xs md:text-sm transition-all
-                          {{ $r2Req ? 'bg-amber-500 border-amber-500 text-white hover:bg-amber-600' : 'bg-transparent border-amber-500/40 text-amber-600 hover:bg-amber-500/10' }}
-                          {{ ($isLocked || !$canOpenR2 || $r2Done) ? 'opacity-50 cursor-not-allowed' : '' }}">
-                        <i class="bi bi-send"></i> {{ $r2Req ? 'Kirim Ulang' : 'Minta Revisi 2' }}
-                      </button>
-                    </div>
-                    <div class="px-4 pb-4 text-xs md:text-sm text-(--muted) leading-relaxed" data-bps-rev-saved data-round="2">
-                      @php $saved2 = trim((string)($revisiCatatan[$d->id][2] ?? '')); @endphp
-                      <span data-bps-rev-saved-prefix>
-                        {{ $saved2 !== '' ? 'Alasan tersimpan:' : 'Isi alasan revisi di textarea di atas, lalu klik tombol “Minta Revisi 2”.' }}
-                      </span>
-                      <span class="text-(--text) font-semibold block mt-1 bg-black/5 dark:bg-white/5 p-3 rounded-lg border border-(--border-strong)" data-bps-rev-saved-text>{{ $saved2 }}</span>
-                      @if($r2Done)
-                        <div class="mt-2 text-[10px] md:text-xs">Revisi 2 sudah selesai, tidak dapat diubah lagi.</div>
-                      @endif
-                    </div>
-                  </div>
-                </div>
+                @endif
 
               </form>
+
+              {{-- Input Hasil Interview (kondisional toggle) --}}
+              @if($interviewInputEnabled)
+                <form id="bps-interview-form-{{ $lke->id }}"
+                      action="{{ route('bps.penilaian.interview') }}"
+                      method="POST"
+                      class="mt-4 bg-blue-500/5 border border-blue-500/20 rounded-xl p-4 md:p-5">
+                  @csrf
+                  <input type="hidden" name="lke_id" value="{{ $lke->id }}">
+
+                  <div class="flex items-center justify-between mb-4">
+                    <div class="font-semibold text-sm text-(--text) flex items-center gap-2">
+                      <i class="bi bi-mic text-blue-500"></i> Hasil Interview
+                    </div>
+                    <span id="save-interview-{{ $lke->id }}" class="text-[10px] md:text-xs font-normal flex items-center gap-1.5 opacity-0 transition-all duration-300 whitespace-nowrap text-(--muted)">
+                      <i class="bi bi-check-circle-fill"></i> Tersimpan
+                    </span>
+                  </div>
+
+                  {{-- Nilai Interview --}}
+                  <div class="mb-4">
+                    <div class="text-xs md:text-sm font-semibold text-(--text) mb-3">Nilai Interview (1–5)</div>
+                    <div class="flex flex-wrap gap-2 md:gap-3">
+                      @for($i = 1; $i <= 5; $i++)
+                        @php $isNilaiChecked = (int)($lke->nilai_interview ?? 0) === $i; @endphp
+                        <label class="flex items-center justify-center cursor-pointer w-12 h-12 md:w-14 md:h-14 border rounded-xl transition-all text-center font-bold text-base md:text-lg
+                          {{ $isNilaiChecked
+                            ? 'border-blue-500 bg-blue-500/10 text-blue-600'
+                            : 'border-(--border-strong) bg-(--sidebar-bg) text-(--muted) hover:border-blue-400/40 hover:bg-black/5' }}
+                          {{ $isLocked ? 'pointer-events-none opacity-80' : '' }}">
+                          <input type="radio" name="nilai_interview" value="{{ $i }}"
+                            {{ $isNilaiChecked ? 'checked' : '' }}
+                            class="sr-only"
+                            {{ $isLocked ? 'disabled' : '' }}
+                            data-lke-id="{{ $lke->id }}"
+                            data-interview-score-radio>
+                          {{ $i }}
+                        </label>
+                      @endfor
+                    </div>
+                  </div>
+
+                  {{-- Catatan Interview --}}
+                  <div class="mb-2">
+                    <label class="block text-xs md:text-sm font-semibold text-(--text) mb-2">Catatan Interview</label>
+                    <textarea name="catatan_interview" id="catatan-interview-{{ $lke->id }}" rows="3"
+                      class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-xs md:text-sm leading-relaxed resize-none placeholder:text-(--muted) disabled:opacity-70"
+                      placeholder="Tulis catatan hasil interview..."
+                      {{ $isLocked ? 'disabled' : '' }}
+                      data-lke-id="{{ $lke->id }}"
+                      data-interview-catatan>{{ $lke->catatan_interview ?? '' }}</textarea>
+                  </div>
+
+                </form>
+              @endif
             @else
               <div class="bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 rounded-xl p-4 text-xs md:text-sm flex items-start gap-3">
                 <i class="bi bi-info-circle-fill mt-0.5 shrink-0"></i>
@@ -442,15 +468,11 @@
 <script>
   /**
    * BPS Penilaian (client-side):
-   * - Accordion memakai scroll offset agar POV selalu ke header (hindari jatuh ke bawah panel).
-   * - Autosave penilaian menggunakan timer per LKE (debounce) untuk mengurangi request.
-   * - Revisi 2 dibatasi: hanya bisa diminta setelah Revisi 1 berstatus `revised`.
-   * - Saat `isLocked` (finalisasi), tombol/textarea seharusnya disabled oleh Blade.
-   *
-   * Catatan: update UI dilakukan live (tanpa refresh) setelah AJAX sukses:
-   * - badge "Dinilai"
-   * - status "Menunggu OPD" / "Selesai"
-   * - label tombol "Minta Revisi" → "Kirim Ulang"
+   * - Accordion memakai scroll offset agar POV selalu ke header.
+   * - Autosave penilaian menggunakan timer per LKE (debounce).
+   * - Revisi Dokumen dibatasi 1x (jika toggle aktif).
+   * - Interview autosave: debounce saat radio/textarea berubah.
+   * - Saat `isLocked` (finalisasi), tombol/textarea disabled oleh Blade.
    */
   const saveTimers = {};
 
@@ -550,7 +572,7 @@
     });
   });
 
-  // Event delegation: robust untuk tombol revisi (termasuk jika DOM berubah)
+  // Event delegation: robust untuk tombol revisi dokumen
   document.addEventListener('click', function (e) {
     const btn = e.target.closest('[data-bps-btn-revisi]');
     if (!btn) return;
@@ -558,7 +580,7 @@
     const lkeId = parseInt(btn.getAttribute('data-lke-id') || '0', 10);
     const round = parseInt(btn.getAttribute('data-round') || '0', 10);
     if (!Number.isFinite(lkeId) || lkeId <= 0) return;
-    if (![1, 2].includes(round)) return;
+    if (round !== 1) return; // hanya round 1
     requestRevisi(lkeId, round);
   }, true);
 
@@ -629,12 +651,12 @@
       return;
     }
     if (action === 'revisi') {
-      if (![1,2].includes(round)) {
+      if (round !== 1) {
         setIndicator(lkeId, 'error', 'Round revisi tidak valid');
         return;
       }
       if (alasan === '') {
-        setIndicator(lkeId, 'error', 'Alasan revisi wajib diisi');
+        setIndicator(lkeId, 'error', 'Alasan revisi dokumen wajib diisi');
         return;
       }
     }
@@ -733,5 +755,80 @@
       btn.setAttribute('title', 'Semua indikator harus dinilai terlebih dahulu');
     }
   }
+
+  /* ---- Interview Autosave ---- */
+  const interviewTimers = {};
+
+  function scheduleInterviewSave(lkeId) {
+    clearTimeout(interviewTimers[lkeId]);
+    interviewTimers[lkeId] = setTimeout(() => saveInterview(lkeId), 800);
+  }
+
+  function saveInterview(lkeId) {
+    const form = document.getElementById(`bps-interview-form-${lkeId}`);
+    if (!form) return;
+    const formData = new FormData(form);
+    const indicator = document.getElementById(`save-interview-${lkeId}`);
+
+    fetch(form.getAttribute('action'), {
+      method: 'POST',
+      body: formData,
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (indicator) {
+        indicator.classList.remove('opacity-0');
+        indicator.classList.add('opacity-100', data.ok ? 'text-emerald-500' : 'text-red-500');
+        indicator.innerHTML = data.ok
+          ? '<i class="bi bi-check-circle-fill"></i> Tersimpan'
+          : `<i class="bi bi-exclamation-circle-fill"></i> ${data.message || 'Gagal'}`;
+        setTimeout(() => indicator.classList.remove('opacity-100'), 3000);
+        setTimeout(() => indicator.classList.add('opacity-0'), 3000);
+      }
+    })
+    .catch(() => {
+      if (indicator) {
+        indicator.classList.remove('opacity-0');
+        indicator.innerHTML = '<i class="bi bi-exclamation-circle-fill"></i> Koneksi gagal';
+      }
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    // Interview score radio
+    document.querySelectorAll('[data-interview-score-radio]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        const lkeId = parseInt(radio.getAttribute('data-lke-id') || '0', 10);
+        if (!lkeId) return;
+        // Update label styles
+        const form = document.getElementById(`bps-interview-form-${lkeId}`);
+        if (form) {
+          form.querySelectorAll('[data-interview-score-radio]').forEach(r => {
+            const lbl = r.closest('label');
+            if (!lbl) return;
+            if (r.checked) {
+              lbl.classList.add('border-blue-500', 'bg-blue-500/10', 'text-blue-600');
+              lbl.classList.remove('border-(--border-strong)', 'bg-(--sidebar-bg)', 'text-(--muted)');
+            } else {
+              lbl.classList.remove('border-blue-500', 'bg-blue-500/10', 'text-blue-600');
+              lbl.classList.add('border-(--border-strong)', 'bg-(--sidebar-bg)', 'text-(--muted)');
+            }
+          });
+        }
+        scheduleInterviewSave(lkeId);
+      });
+    });
+
+    // Interview catatan textarea
+    document.querySelectorAll('[data-interview-catatan]').forEach(ta => {
+      const on = () => {
+        const lkeId = parseInt(ta.getAttribute('data-lke-id') || '0', 10);
+        if (lkeId) scheduleInterviewSave(lkeId);
+      };
+      ta.addEventListener('keyup', on);
+      ta.addEventListener('change', on);
+    });
+  });
 </script>
 @endsection

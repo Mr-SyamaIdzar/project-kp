@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\GlobalSetting;
 use App\Models\LembarKerjaEvaluasi;
 use App\Models\Indikator;
 use App\Models\LkeRevisiRequest;
@@ -245,24 +246,8 @@ class LembarKerjaEvaluasiController extends Controller
             ])
             ->values();
 
-        // Map alasan revisi per paket+domain+round untuk kebutuhan XLSX
-        $alasanMap = collect();
-        if (\Illuminate\Support\Facades\Schema::hasTable('lke_revisi_requests')) {
-            $reqs = LkeRevisiRequest::query()
-                ->whereIn('user_id', $items->pluck('user_id')->unique())
-                ->whereIn('tahun_id', $items->pluck('tahun_id')->unique())
-                ->whereIn('domain_id', $items->pluck('domain_id')->unique())
-                ->get();
-
-            $alasanMap = $reqs
-                ->groupBy(function ($r) {
-                    return $r->user_id.'|'.$r->tahun_id.'|'.$r->nama_kegiatan.'|'.$r->nomor_rekomendasi.'|'.$r->domain_id.'|'.$r->round;
-                })
-                ->map(function ($g) {
-                    $last = $g->sortByDesc('id')->first();
-                    return trim((string) ($last->catatan ?? ''));
-                });
-        }
+        // Map alasan revisi sudah tidak diperlukan karena nilai & catatan awal tersimpan pada $base record
+        $interviewInputEnabled = GlobalSetting::isEnabled('interview_input_enabled');
 
         $headers = [
             'Nama Perangkat Daerah',
@@ -274,9 +259,15 @@ class LembarKerjaEvaluasiController extends Controller
             $headers[] = 'Kode Indikator';
             $headers[] = 'Penilaian OPD';
             $headers[] = 'Penjelasan OPD Awal';
-            $headers[] = 'Penjelasan OPD Setelah Direvisi';
-            $headers[] = 'Penilaian BPS';
-            $headers[] = 'Catatan BPS';
+            $headers[] = 'Penjelasan OPD Setelah Revisi Dokumen';
+            $headers[] = 'Nilai Dokumen Awal';
+            $headers[] = 'Catatan Dokumen Awal';
+            $headers[] = 'Nilai Dokumen Akhir';
+            $headers[] = 'Catatan Dokumen Akhir';
+            if ($interviewInputEnabled) {
+                $headers[] = 'Nilai Interview';
+                $headers[] = 'Catatan Interview';
+            }
         }
 
         $rows = [];
@@ -294,46 +285,53 @@ class LembarKerjaEvaluasiController extends Controller
                     /** @var \Illuminate\Support\Collection $hist */
                     $base = $hist->where('status', '!=', 'revisi')->sortByDesc('id')->first();
                     $rev1 = $hist->where('status', 'revisi')->where('revisi_round', 1)->sortByDesc('id')->first();
-                    $rev2 = $hist->where('status', 'revisi')->where('revisi_round', 2)->sortByDesc('id')->first();
 
                     $kode  = (string) (($base?->domain->kode ?? null) ?: ($hist->first()?->domain->kode ?? '-') ?: '-');
                     $nilai = (string) (($base?->nilai ?? null) ?: ($hist->sortByDesc('id')->first()?->nilai ?? '-'));
 
                     $p0 = trim((string) ($base?->penjelasan ?? ''));
                     $p1 = trim((string) ($rev1?->penjelasan ?? ''));
-                    $p2 = trim((string) ($rev2?->penjelasan ?? ''));
 
                     $penjelasanAwal = $p0 !== '' ? $p0 : '-';
-                    $penjelasanAkhir = '-';
-                    if ($p2 !== '') {
-                        $penjelasanAkhir = $p2;
-                    } elseif ($p1 !== '') {
-                        $penjelasanAkhir = $p1;
-                    }
+                    // Revisi dokumen maks 1x: cukup cek rev1
+                    $penjelasanAkhir = $p1 !== '' ? $p1 : '-';
 
-                    $lastBps = $hist->whereNotNull('penilaian_bps')->sortByDesc('updated_at')->first();
-                    $penilaianBps = $lastBps?->penilaian_bps ? (string) $lastBps->penilaian_bps : '-';
+                    $nilaiDokumenAwal = '-';
+                    $catatanDokumenAwal = '-';
+                    $nilaiDokumenAkhir = '-';
+                    $catatanDokumenAkhir = '-';
 
-                    $catEval = trim((string) ($hist->sortByDesc('updated_at')->first(fn ($r) => trim((string) ($r->catatan_bps ?? '')) !== '')?->catatan_bps ?? ''));
-                    $keyBase = $package['user_id'].'|'.$package['tahun_id'].'|'.$package['nama_kegiatan'].'|'.$package['nomor_rekomendasi'].'|'.(int) $domain['id'];
-                    $a1 = trim((string) ($alasanMap[$keyBase.'|1'] ?? ''));
-                    $a2 = trim((string) ($alasanMap[$keyBase.'|2'] ?? ''));
-
-                    $catatanBps = '-';
-                    if ($a2 !== '') {
-                        $catatanBps = $a2;
-                    } elseif ($a1 !== '') {
-                        $catatanBps = $a1;
-                    } elseif ($catEval !== '') {
-                        $catatanBps = $catEval;
+                    if ($rev1) {
+                        // Jika BPS meminta revisi
+                        $nilaiDokumenAwal = $base?->penilaian_bps ? (string) $base->penilaian_bps : '-';
+                        $catatanDokumenAwal = trim((string) ($base?->catatan_bps ?? '')) !== '' ? $base->catatan_bps : '-';
+                        
+                        $nilaiDokumenAkhir = $rev1?->penilaian_bps ? (string) $rev1->penilaian_bps : '-';
+                        $catatanDokumenAkhir = trim((string) ($rev1?->catatan_bps ?? '')) !== '' ? $rev1->catatan_bps : '-';
+                    } else {
+                        // Jika BPS tidak meminta revisi
+                        $nilaiDokumenAkhir = $base?->penilaian_bps ? (string) $base->penilaian_bps : '-';
+                        $catatanDokumenAkhir = trim((string) ($base?->catatan_bps ?? '')) !== '' ? $base->catatan_bps : '-';
                     }
 
                     $rowData[] = $kode;
                     $rowData[] = $nilai;
                     $rowData[] = $penjelasanAwal;
                     $rowData[] = $penjelasanAkhir;
-                    $rowData[] = $penilaianBps;
-                    $rowData[] = $catatanBps;
+                    $rowData[] = $nilaiDokumenAwal;
+                    $rowData[] = $catatanDokumenAwal;
+                    $rowData[] = $nilaiDokumenAkhir;
+                    $rowData[] = $catatanDokumenAkhir;
+
+                    if ($interviewInputEnabled) {
+                        $lastBps = $hist->filter(function ($r) {
+                            return !is_null($r->nilai_interview) || !is_null($r->catatan_interview);
+                        })->sortByDesc('updated_at')->first() ?? $hist->sortByDesc('updated_at')->first();
+                        $nilaiInterview    = (string) ($lastBps?->nilai_interview ?? '-');
+                        $catatanInterview  = trim((string) ($lastBps?->catatan_interview ?? '-'));
+                        $rowData[] = $nilaiInterview !== '' ? $nilaiInterview : '-';
+                        $rowData[] = $catatanInterview !== '' ? $catatanInterview : '-';
+                    }
                 } else {
                     $rowData[] = '-';
                     $rowData[] = '-';
@@ -341,6 +339,12 @@ class LembarKerjaEvaluasiController extends Controller
                     $rowData[] = '-';
                     $rowData[] = '-';
                     $rowData[] = '-';
+                    $rowData[] = '-';
+                    $rowData[] = '-';
+                    if ($interviewInputEnabled) {
+                        $rowData[] = '-';
+                        $rowData[] = '-';
+                    }
                 }
             }
 
@@ -388,8 +392,14 @@ class LembarKerjaEvaluasiController extends Controller
                 // Header row always gets centered or bold later if needed, but for now apply Normal.
                 if ($rIdx > 0) {
                     if ($cIdx >= 4) {
-                        // 6 kolom per domain: Kode(0), Penilaian OPD(1), Penjelasan Awal(2), Penjelasan Revisi(3), Penilaian BPS(4), Catatan BPS(5)
-                        $colGroupIndex = ($cIdx - 4) % 6;
+                        // 8 kolom per domain: Kode(0), Penilaian OPD(1), Penjelasan Awal(2), Penjelasan Revisi(3), 
+                        // Nilai Awal(4), Catatan Awal(5), Nilai Akhir(6), Catatan Akhir(7)
+                        // (Kalo ada interview, offset-nya nambah tapi logic wrap/center bisa ngikutin index group).
+                        $interviewEnabledInBuild = \App\Models\GlobalSetting::isEnabled('interview_input_enabled');
+                        $interviewOffset = $interviewEnabledInBuild ? 2 : 0;
+                        $columnsPerDomain = 8 + $interviewOffset;
+                        $colGroupIndex = ($cIdx - 4) % $columnsPerDomain;
+                        
                         if ($colGroupIndex === 0) {
                             $sAttr = ' s="1"'; // Center (Kode Indikator)
                         } elseif ($colGroupIndex === 1) {
@@ -397,9 +407,17 @@ class LembarKerjaEvaluasiController extends Controller
                         } elseif ($colGroupIndex === 2 || $colGroupIndex === 3) {
                             $sAttr = ' s="3"'; // Left, Wrap, Top (Penjelasan Awal/Revisi)
                         } elseif ($colGroupIndex === 4) {
-                            $sAttr = ' s="2"'; // Center (Penilaian BPS)
+                            $sAttr = ' s="2"'; // Center (Nilai BPS Awal)
                         } elseif ($colGroupIndex === 5) {
-                            $sAttr = ' s="3"'; // Left, Wrap, Top (Catatan BPS)
+                            $sAttr = ' s="3"'; // Left, Wrap, Top (Catatan BPS Awal)
+                        } elseif ($colGroupIndex === 6) {
+                            $sAttr = ' s="2"'; // Center (Nilai BPS Akhir)
+                        } elseif ($colGroupIndex === 7) {
+                            $sAttr = ' s="3"'; // Left, Wrap, Top (Catatan BPS Akhir)
+                        } elseif ($colGroupIndex === 8) {
+                            $sAttr = ' s="2"'; // Center (Nilai Interview)
+                        } elseif ($colGroupIndex === 9) {
+                            $sAttr = ' s="3"'; // Left, Wrap, Top (Catatan Interview)
                         }
                     } else {
                         // first 4 columns: OPD, Kegiatan, Tahun, Norek
@@ -426,8 +444,9 @@ class LembarKerjaEvaluasiController extends Controller
         $colsXml .= '<col min="2" max="2" width="45" customWidth="1"/>';
         $colsXml .= '<col min="3" max="3" width="15" customWidth="1"/>';
         $colsXml .= '<col min="4" max="4" width="25" customWidth="1"/>';
-        
         $currentColIndex = 5;
+        $interviewInputEnabled = \App\Models\GlobalSetting::isEnabled('interview_input_enabled');
+        
         for ($i = 0; $i < $domainCount; $i++) {
             // Kode (Center)
             $colsXml .= '<col min="'.$currentColIndex.'" max="'.$currentColIndex.'" width="15" customWidth="1"/>';
@@ -441,12 +460,27 @@ class LembarKerjaEvaluasiController extends Controller
             // Penjelasan OPD Setelah Direvisi (Left-Top Wrap)
             $colsXml .= '<col min="'.$currentColIndex.'" max="'.$currentColIndex.'" width="45" customWidth="1"/>';
             $currentColIndex++;
-            // Penilaian BPS (Center)
-            $colsXml .= '<col min="'.$currentColIndex.'" max="'.$currentColIndex.'" width="15" customWidth="1"/>';
+            // Nilai Dokumen Awal (Center)
+            $colsXml .= '<col min="'.$currentColIndex.'" max="'.$currentColIndex.'" width="20" customWidth="1"/>';
             $currentColIndex++;
-            // Catatan BPS (Left-Top Wrap)
-            $colsXml .= '<col min="'.$currentColIndex.'" max="'.$currentColIndex.'" width="40" customWidth="1"/>';
+            // Catatan Dokumen Awal (Left-Top Wrap)
+            $colsXml .= '<col min="'.$currentColIndex.'" max="'.$currentColIndex.'" width="45" customWidth="1"/>';
             $currentColIndex++;
+            // Nilai Dokumen Akhir (Center)
+            $colsXml .= '<col min="'.$currentColIndex.'" max="'.$currentColIndex.'" width="20" customWidth="1"/>';
+            $currentColIndex++;
+            // Catatan Dokumen Akhir (Left-Top Wrap)
+            $colsXml .= '<col min="'.$currentColIndex.'" max="'.$currentColIndex.'" width="45" customWidth="1"/>';
+            $currentColIndex++;
+            
+            if ($interviewInputEnabled) {
+                // Nilai Interview
+                $colsXml .= '<col min="'.$currentColIndex.'" max="'.$currentColIndex.'" width="15" customWidth="1"/>';
+                $currentColIndex++;
+                // Catatan Interview
+                $colsXml .= '<col min="'.$currentColIndex.'" max="'.$currentColIndex.'" width="45" customWidth="1"/>';
+                $currentColIndex++;
+            }
         }
         $colsXml .= '</cols>';
 

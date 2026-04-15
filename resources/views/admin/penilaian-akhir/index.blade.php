@@ -360,10 +360,20 @@
 
   function confirmDelete(userId, tahun) {
     const opd = opdsData.find(o => o.id === userId);
-    if (!confirm(`Hapus nilai akhir tahun ${tahun} untuk ${opd?.nama ?? 'OPD ini'}?`)) return;
-    document.getElementById('deleteUserId').value = userId;
-    document.getElementById('deleteTahun').value  = tahun;
-    document.getElementById('deleteForm').submit();
+    const msg = `Hapus nilai akhir tahun ${tahun} untuk ${opd?.nama ?? 'OPD ini'}?`;
+    
+    if (typeof window.showConfirm === 'function') {
+      window.showConfirm(msg, function() {
+        document.getElementById('deleteUserId').value = userId;
+        document.getElementById('deleteTahun').value  = tahun;
+        document.getElementById('deleteForm').submit();
+      }, 'Konfirmasi', 'warning', 'Ya, Hapus');
+    } else {
+      if (!confirm(msg)) return;
+      document.getElementById('deleteUserId').value = userId;
+      document.getElementById('deleteTahun').value  = tahun;
+      document.getElementById('deleteForm').submit();
+    }
   }
 
   function esc(s) {

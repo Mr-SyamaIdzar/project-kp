@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminPenilaianAkhir;
+use App\Models\GlobalSetting;
 use App\Models\OpdMenuSetting;
 use App\Models\RoleInformasi;
 use App\Models\User;
@@ -46,6 +47,10 @@ class MasterMenuController extends Controller
         $informasiOpd   = RoleInformasi::forRole('opd');
         $informasiBps   = RoleInformasi::forRole('bps');
 
+        // Load feature toggles
+        $revisiDokumenEnabled  = GlobalSetting::isEnabled('revisi_dokumen_enabled');
+        $interviewInputEnabled = GlobalSetting::isEnabled('interview_input_enabled');
+
         return view('admin.master-menu.index', compact(
             'role',
             'totalUsers',
@@ -53,7 +58,9 @@ class MasterMenuController extends Controller
             'menuIsiLkeAvailable',
             'informasiAdmin',
             'informasiOpd',
-            'informasiBps'
+            'informasiBps',
+            'revisiDokumenEnabled',
+            'interviewInputEnabled',
         ));
     }
 
@@ -122,6 +129,23 @@ class MasterMenuController extends Controller
         return redirect()
             ->route('master-menu.index', ['role' => $validated['role']])
             ->with('success', 'Informasi untuk role ' . strtoupper($validated['role']) . ' berhasil diperbarui.');
+    }
+
+    /**
+     * Simpan toggle fitur global (Revisi Dokumen & Input Hasil Interview).
+     */
+    public function updateFeatureToggles(Request $request)
+    {
+        $revisiDokumenEnabled  = $request->has('revisi_dokumen_enabled');
+        $interviewInputEnabled = $request->has('interview_input_enabled');
+
+        GlobalSetting::set('revisi_dokumen_enabled',  $revisiDokumenEnabled  ? '1' : '0');
+        GlobalSetting::set('interview_input_enabled', $interviewInputEnabled ? '1' : '0');
+        GlobalSetting::flushCache();
+
+        return redirect()
+            ->route('master-menu.index')
+            ->with('success', 'Pengaturan fitur berhasil disimpan.');
     }
 
     /**

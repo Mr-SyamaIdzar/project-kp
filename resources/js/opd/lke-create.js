@@ -62,15 +62,14 @@
 
   const toast = (typeof window.showToast === 'function')
     ? window.showToast
-    : (message) => alert(message);
+    : (message) => (typeof window.showAlert === 'function') ? window.showAlert(message) : alert(message);
 
   function scrollToElementTop(el, offset = SCROLL_HEADER_OFFSET) {
-    // Manual scroll lebih stabil daripada scrollIntoView() saat panel accordion berubah tinggi.
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const top = window.scrollY + rect.top - offset;
     const clamped = Math.max(0, top);
-    window.scrollTo({ top: clamped, behavior: 'instant' });
+    window.scrollTo({ top: clamped, behavior: 'smooth' });
   }
 
   function getCardByAccordionId(accId) {
@@ -118,48 +117,32 @@
   }
 
   function confirmPopup({ title = 'Konfirmasi', message = '', yesText = 'Ya', noText = 'Tidak' } = {}) {
-    // Custom modal (bukan window.confirm) agar UX konsisten dark/light mode + bisa HTML message.
-    ensureConfirmModal();
-    const modal = document.getElementById('kpConfirmModal');
-    const titleEl = document.getElementById('kpConfirmTitle');
-    const msgEl = document.getElementById('kpConfirmMessage');
-    const btnYes = modal.querySelector('[data-kp-confirm-yes]');
-    const btnNo = modal.querySelector('[data-kp-confirm-no]');
-    const overlay = modal.querySelector('[data-kp-confirm-overlay]');
-
-    if (titleEl) titleEl.textContent = title;
-    if (msgEl) msgEl.innerHTML = message;
-    if (btnYes) btnYes.textContent = yesText;
-    if (btnNo) btnNo.textContent = noText;
-
-    modal.classList.remove('hidden');
-
     return new Promise((resolve) => {
-      let done = false;
-
-      const cleanup = () => {
-        if (done) return;
-        done = true;
-        modal.classList.add('hidden');
-        btnYes?.removeEventListener('click', onYes);
-        btnNo?.removeEventListener('click', onNo);
-        overlay?.removeEventListener('click', onNo);
-        document.removeEventListener('keydown', onKey);
-      };
-
-      const onYes = () => { cleanup(); resolve(true); };
-      const onNo = () => { cleanup(); resolve(false); };
-      const onKey = (e) => {
-        if (e.key === 'Escape') onNo();
-      };
-
-      btnYes?.addEventListener('click', onYes);
-      btnNo?.addEventListener('click', onNo);
-      overlay?.addEventListener('click', onNo);
-      document.addEventListener('keydown', onKey);
-
-      // Fokus ke tombol "Ya" biar enak keyboard user
-      setTimeout(() => btnYes?.focus?.(), 0);
+      if (typeof window.showConfirm === 'function') {
+        window.showConfirm(message, () => resolve(true), title, 'warning', yesText, noText);
+        // Bind the "No" button to resolve false
+        setTimeout(() => {
+          const cancelBtn = document.getElementById('cm-cancel-btn');
+          const overlay = document.getElementById('custom-modal-overlay');
+          if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => resolve(false));
+          }
+          if (overlay) {
+            const escapeHandler = (e) => {
+              if (e.key === 'Escape') {
+                resolve(false);
+                document.removeEventListener('keydown', escapeHandler);
+              }
+            };
+            document.addEventListener('keydown', escapeHandler);
+            overlay.addEventListener('click', (e) => {
+              if (e.target === overlay) resolve(false);
+            });
+          }
+        }, 100);
+      } else {
+        resolve(confirm(message));
+      }
     });
   }
 
@@ -487,47 +470,38 @@
     debouncedAutosave(domainId);
   }
 
+  function closeAccordion(id) {
+    const activeContent = document.getElementById(id);
+    const btn = document.querySelector(`.btn-toggle-acc[data-target="${id}"]`);
+    if (!activeContent || activeContent.classList.contains('hidden')) return;
+
+    activeContent.classList.add('hidden');
+    if (btn) {
+      btn.innerHTML = '<i class="bi bi-chevron-down transition-transform duration-500 inline-block accordion-icon"></i> Buka';
+      btn.classList.remove('bg-(--brand)', 'text-white', 'border-(--brand)');
+      btn.classList.add('bg-transparent', 'text-(--text)', 'border-(--border-strong)');
+    }
+  }
+
   function toggleAccordion(accId) {
     // Accordion behavior:
-    // - Menutup panel lain sebelum membuka panel baru
-    // - Scroll ke header panel yang dibuka (2x) untuk mengatasi reflow saat tinggi konten berubah
+    // - Menutup panel lain langsung (tanpa inline animasi) agar offset stabil
+    // - Buka panel yang dituju
+    // - Scroll memanggil requestAnimationFrame agar browser menghitung tinggi layout baru, 
+    //   sehingga menghindari layout bergeser (shift) mendadak dan mendarat mulus ke header.
     const activeContent = document.getElementById(accId);
     if (!activeContent) return;
 
     const isHidden = activeContent.classList.contains('hidden');
 
     document.querySelectorAll('.group-expanded').forEach((el) => {
-      if (!el.classList.contains('hidden')) {
-        el.style.transform = 'scaleY(0.95)';
-        el.style.opacity = '0';
-        setTimeout(() => el.classList.add('hidden'), 400);
+      if (el.id !== accId) {
+        closeAccordion(el.id);
       }
-    });
-
-    document.querySelectorAll('.btn-toggle-acc').forEach((btn) => {
-      btn.textContent = 'Buka';
-      btn.classList.remove('bg-(--brand)', 'text-white');
-      btn.classList.add('text-(--text)', 'bg-transparent');
-      const icon = btn.querySelector('i');
-      if (icon) icon.style.transform = 'rotate(0deg)';
     });
 
     if (isHidden) {
       activeContent.classList.remove('hidden');
-
-      // Scroll langsung tanpa jeda — behavior 'instant' tidak memerlukan animasi selesai dulu.
-      const header = getAccordionHeaderById(accId) || getCardByAccordionId(accId);
-      if (header) scrollToElementTop(header);
-
-      activeContent.style.transformOrigin = 'top center';
-      activeContent.style.transform = 'scaleY(0.95)';
-      activeContent.style.opacity = '0';
-      activeContent.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
-
-      setTimeout(() => {
-        activeContent.style.transform = 'scaleY(1)';
-        activeContent.style.opacity = '1';
-      }, 10);
 
       const btn = document.querySelector(`.btn-toggle-acc[data-target="${accId}"]`);
       if (btn) {
@@ -535,6 +509,19 @@
         btn.classList.remove('text-(--text)', 'bg-transparent');
         btn.classList.add('bg-(--brand)', 'text-white', 'border-(--brand)');
       }
+
+      // Pastikan browser merender ulang height terlebih dahulu sebelum scrollTo dihitung
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const header = getAccordionHeaderById(accId) || getCardByAccordionId(accId);
+          if (header) {
+            header.classList.add('scroll-mt-header');
+            scrollToElementTop(header, SCROLL_HEADER_OFFSET);
+          }
+        });
+      });
+    } else {
+      closeAccordion(accId);
     }
   }
 

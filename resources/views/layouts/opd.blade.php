@@ -45,6 +45,8 @@
   </div>
 </div>
 
+@include('partials._custom-alert')
+
 <!-- Layout Wrapper -->
 <div class="grid grid-cols-1 lg:grid-cols-[280px_1fr] min-h-screen">
   <!-- OFFCANVAS (Mobile/Tablet) Vanilla implementation -->
