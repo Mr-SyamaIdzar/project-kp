@@ -39,7 +39,7 @@
           <i class="bi bi-award-fill text-(--brand) text-lg"></i>
         </div>
         <div>
-          <div class="font-semibold text-sm md:text-base text-(--text)">Nilai Akhir dari Admin</div>
+          <div class="font-semibold text-sm md:text-base text-(--text)">Nilai Akhir</div>
           <div class="text-[10px] text-(--muted)">Tahun {{ $penilaianAkhir->tahun }}</div>
         </div>
       </div>
