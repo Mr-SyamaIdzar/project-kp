@@ -124,7 +124,7 @@
       iconW.className = 'w-11 h-11 rounded-xl flex items-center justify-center shrink-0 text-xl ' + s.iconClass;
       iconW.innerHTML = s.icon;
       titleEl.textContent = title;
-      msgEl.textContent = message;
+      msgEl.innerHTML = message;
       actions.innerHTML = `
         <button id="cm-cancel-btn"
           class="px-5 py-2 border border-(--border-strong) text-(--text) rounded-xl text-sm font-semibold hover:bg-white/5 transition-colors">

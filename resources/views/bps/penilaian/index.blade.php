@@ -43,8 +43,8 @@
     </div>
     <div class="w-full sm:w-auto sm:flex-1 min-w-0">
       <select name="export_status" onchange="this.form.submit()" class="w-full bg-(--sidebar-bg) border border-(--border-strong) text-(--text) rounded-xl px-3 py-2.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-(--brand) transition-all">
-        <option value="all" {{ request('export_status') === 'all' ? 'selected' : '' }}>Semua Status</option>
-        <option value="done" {{ request('export_status') === 'done' ? 'selected' : '' }}>Sudah Dinilai Semua (Done)</option>
+        <option value="all" {{ ($exportStatus ?? 'all') === 'all' ? 'selected' : '' }}>Semua Status</option>
+        <option value="done" {{ ($exportStatus ?? 'all') === 'done' ? 'selected' : '' }}>Sudah Dinilai Semua (Done)</option>
       </select>
     </div>
     <div class="flex flex-wrap gap-2 shrink-0">

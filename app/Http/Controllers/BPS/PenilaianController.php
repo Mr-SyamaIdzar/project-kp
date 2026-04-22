@@ -26,16 +26,20 @@ class PenilaianController extends Controller
      */
     public function index(Request $request)
     {
-        $userId  = (int) $request->get('user_id', 0);
-        $exportYear = (int) $request->get('export_year', 0);
+        $userId      = (int) $request->get('user_id', 0);
+        $exportYear  = (int) $request->get('export_year', 0);
+        $exportStatus = (string) $request->get('export_status', 'all');
+        if (!in_array($exportStatus, ['all', 'done'], true)) {
+            $exportStatus = 'all';
+        }
         $sortOpd = (string) $request->get('sort_opd', 'asc');
         if (!in_array($sortOpd, ['asc', 'desc'], true)) {
             $sortOpd = 'asc';
         }
 
-        $opds   = User::where('role', 'opd')->orderBy('nama')->get();
+        $opds         = User::where('role', 'opd')->orderBy('nama')->get();
         $totalDomains = (int) Indikator::count();
-        $exportYears = LembarKerjaEvaluasi::query()
+        $exportYears  = LembarKerjaEvaluasi::query()
             ->whereIn('status', ['final', 'revisi'])
             ->selectRaw('DISTINCT YEAR(created_at) as y')
             ->pluck('y')
@@ -64,6 +68,9 @@ class PenilaianController extends Controller
             ->when($userId > 0, fn ($q) => $q->where('lembar_kerja_evaluasi.user_id', $userId))
             ->when($exportYear > 0, fn ($q) => $q->whereYear('lembar_kerja_evaluasi.created_at', $exportYear))
             ->groupBy('user_id', 'tahun_id', 'nama_kegiatan', 'nomor_rekomendasi', 'user_name')
+            ->when($exportStatus === 'done' && $totalDomains > 0, fn ($q) =>
+                $q->havingRaw('COUNT(DISTINCT CASE WHEN lembar_kerja_evaluasi.penilaian_bps IS NOT NULL THEN lembar_kerja_evaluasi.domain_id END) >= ?', [$totalDomains])
+            )
             ->orderBy('user_name', $sortOpd)
             ->orderByDesc('last_update')
             ->paginate(10)
@@ -83,6 +90,7 @@ class PenilaianController extends Controller
             'userId',
             'exportYear',
             'exportYears',
+            'exportStatus',
             'userMap',
             'tahunMap',
             'sortOpd',
