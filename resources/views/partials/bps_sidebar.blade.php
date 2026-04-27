@@ -10,7 +10,7 @@
   <div class="grow min-w-0">
     <div class="font-semibold wrap-break-word whitespace-normal leading-tight">{{ $u?->nama ?? $u?->username ?? 'BPS' }}</div>
     <div class="mt-1">
-      @php($role = 'bps')
+      @php($role = 'BPS')
       <style>html[data-theme="light"] .badge-txt-bps { color: #064e3b !important; }</style>
       <span class="role-badge capitalize inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] md:text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-500/20 badge-txt-bps dark:text-emerald-200 border-[0.5px] border-emerald-300 dark:border-emerald-500/50">
         {{ $role }}

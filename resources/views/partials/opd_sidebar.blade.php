@@ -9,7 +9,7 @@
   <div class="grow min-w-0">
     <div class="font-semibold wrap-break-word whitespace-normal leading-tight">{{ $user?->nama ?? $user?->username ?? 'OPD' }}</div>
     <div class="mt-1">
-      @php($role = 'opd')
+      @php($role = 'OPD')
       <style>html[data-theme="light"] .badge-txt-opd { color: #1e3a8a !important; }</style>
       <span class="role-badge capitalize inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] md:text-[11px] font-semibold bg-blue-100 dark:bg-blue-500/20 badge-txt-opd dark:text-blue-200 border-[0.5px] border-blue-300 dark:border-blue-500/50">
         {{ $role }}
