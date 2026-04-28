@@ -45,7 +45,7 @@
   <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
     <div class="md:col-span-4">
       <div class="text-[10px] md:text-xs font-semibold text-(--muted) uppercase tracking-wider mb-1">OPD</div>
-      <div class="font-semibold text-(--text) text-base md:text-lg">{{ $user->nama ?? $user->username }}</div>
+      <div class="font-semibold text-(--text) text-base md:text-lg wrap-break-word">{{ $user->nama ?? $user->username }}</div>
       <div class="text-(--muted) text-[10px] md:text-xs mt-1">username: {{ $user->username }}</div>
     </div>
     <div class="md:col-span-4">
@@ -98,7 +98,7 @@
       <div class="bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border-b border-(--border-strong) p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer transition-colors lke-head-toggle"
            data-target="{{ $accId }}" tabindex="0">
         <div class="flex-1 pointer-events-none">
-          <div class="font-semibold text-(--text) text-sm md:text-base mb-1">{{ $d->nama_indikator }}</div>
+          <div class="font-semibold text-(--text) text-sm md:text-base mb-1 wrap-break-word">{{ $d->nama_indikator }}</div>
           <div class="text-[10px] md:text-xs text-(--muted)">
             <b class="text-(--text) font-semibold">{{ $d->kode }}</b> — {{ $d->nama_domain }} — {{ $d->nama_aspek }}
           </div>
@@ -161,7 +161,7 @@
                           <span class="font-bold">T{{ $k->tingkat }}</span>
                         </div>
                       </td>
-                      <td class="p-3">{{ $k->kriteria }}</td>
+                      <td class="p-3 wrap-break-word">{{ $k->kriteria }}</td>
                     </tr>
                   @endforeach
                 </tbody>
@@ -201,7 +201,7 @@
                     <i class="bi bi-clock-history text-(--muted)"></i> Sebelum Revisi
                   </div>
                   <div class="text-[10px] md:text-xs text-(--muted) mb-2 uppercase tracking-wide">Penjelasan</div>
-                  <div class="text-xs md:text-sm text-(--text) whitespace-pre-wrap text-left">{{ trim((string)($base?->penjelasan ?? '')) !== '' ? $base->penjelasan : '-' }}</div>
+                  <div class="text-xs md:text-sm text-(--text) whitespace-pre-wrap text-left wrap-break-word">{{ trim((string)($base?->penjelasan ?? '')) !== '' ? $base->penjelasan : '-' }}</div>
                   <div class="mt-4 text-[10px] md:text-xs text-(--muted) mb-2 uppercase tracking-wide">Bukti Dukung</div>
                   @if($filesBase && $filesBase->count() > 0)
                     <div class="space-y-2">
@@ -223,7 +223,7 @@
                     <i class="bi bi-arrow-return-left text-emerald-600"></i> Revisi 1
                   </div>
                   <div class="text-[10px] md:text-xs text-(--muted) mb-2 uppercase tracking-wide">Penjelasan</div>
-                  <div class="text-xs md:text-sm text-(--text) whitespace-pre-wrap text-left">{{ trim((string)($rev1?->penjelasan ?? '')) !== '' ? $rev1->penjelasan : '-' }}</div>
+                  <div class="text-xs md:text-sm text-(--text) whitespace-pre-wrap text-left wrap-break-word">{{ trim((string)($rev1?->penjelasan ?? '')) !== '' ? $rev1->penjelasan : '-' }}</div>
                   <div class="mt-4 text-[10px] md:text-xs text-(--muted) mb-2 uppercase tracking-wide">Bukti Dukung</div>
                   @if($filesR1 && $filesR1->count() > 0)
                     <div class="space-y-2">
@@ -383,7 +383,7 @@
                         <span data-bps-rev-saved-prefix>
                           {{ $saved1 !== '' ? 'Alasan tersimpan:' : 'Isi alasan di textarea di atas, lalu klik "Minta Revisi Dokumen".' }}
                         </span>
-                        <span class="text-(--text) font-semibold block mt-1 bg-black/5 dark:bg-white/5 p-3 rounded-lg border border-(--border-strong)" data-bps-rev-saved-text>{{ $saved1 }}</span>
+                        <span class="text-(--text) font-semibold block mt-1 bg-black/5 dark:bg-white/5 p-3 rounded-lg border border-(--border-strong) wrap-break-word" data-bps-rev-saved-text>{{ $saved1 }}</span>
                         @if($r1Done)
                           <div class="mt-2 text-[10px] md:text-xs text-emerald-600">Revisi dokumen sudah selesai. OPD telah melakukan revisi.</div>
                         @endif

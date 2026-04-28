@@ -220,7 +220,7 @@
                           <span class="font-bold text-base md:text-lg text-(--text) span-num">{{ $k->tingkat }}</span>
                         </label>
                       </td>
-                      <td class="p-3 align-middle text-(--text) td-kriteria">{{ $k->kriteria }}</td>
+                      <td class="p-3 align-middle text-(--text) td-kriteria wrap-break-word">{{ $k->kriteria }}</td>
                     </tr>
                   @endforeach
                 </tbody>
