@@ -327,10 +327,18 @@ class LembarKerjaEvaluasiController extends Controller
                         $lastBps = $hist->filter(function ($r) {
                             return !is_null($r->nilai_interview) || !is_null($r->catatan_interview);
                         })->sortByDesc('updated_at')->first() ?? $hist->sortByDesc('updated_at')->first();
-                        $nilaiInterview    = (string) ($lastBps?->nilai_interview ?? '-');
-                        $catatanInterview  = trim((string) ($lastBps?->catatan_interview ?? '-'));
-                        $rowData[] = $nilaiInterview !== '' ? $nilaiInterview : '-';
-                        $rowData[] = $catatanInterview !== '' ? $catatanInterview : '-';
+
+                        // Excel interview memakai input web jika ada. Jika salah satu field interview
+                        // kosong, field tersebut mengikuti nilai/catatan dokumen akhir.
+                        $nilaiInterviewInput = $lastBps?->nilai_interview;
+                        $catatanInterviewInput = trim((string) ($lastBps?->catatan_interview ?? ''));
+
+                        $rowData[] = !is_null($nilaiInterviewInput)
+                            ? (string) $nilaiInterviewInput
+                            : $nilaiDokumenAkhir;
+                        $rowData[] = $catatanInterviewInput !== ''
+                            ? $catatanInterviewInput
+                            : $catatanDokumenAkhir;
                     }
                 } else {
                     $rowData[] = '-';
