@@ -28,10 +28,10 @@ class Kriteria extends Model
     {
         parent::boot();
 
-        static::deleting(function ($kriteria) {
-            // Delete all related LembarKerjaEvaluasi
-            \App\Models\LembarKerjaEvaluasi::where('kriteria_id', $kriteria->id)->delete();
-        });
+        // Catatan: LembarKerjaEvaluasi TIDAK di-cascade delete di sini.
+        // Jika masih ada LKE yang mereferensi kriteria ini, FK constraint database
+        // akan mencegah penghapusan kriteria (QueryException kode 23000),
+        // sehingga data LKE tetap aman.
     }
 
 }

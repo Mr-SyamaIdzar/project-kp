@@ -24,9 +24,12 @@ class Indikator extends Model
         parent::boot();
 
         static::deleting(function ($domain) {
-            // Delete all related LembarKerjaEvaluasi first
-            \App\Models\LembarKerjaEvaluasi::where('domain_id', $domain->id)->delete();
-            // Then delete all related Kriterias
+            // Catatan: LembarKerjaEvaluasi TIDAK di-cascade delete di sini.
+            // Jika masih ada LKE yang mereferensi domain ini, FK constraint database
+            // akan mencegah penghapusan domain (QueryException kode 23000),
+            // sehingga data LKE tetap aman.
+            // Hanya Kriteria yang di-cascade delete karena kriteria adalah bagian
+            // dari definisi domain itu sendiri.
             $domain->kriterias()->delete();
         });
     }
