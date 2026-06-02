@@ -3,57 +3,42 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
+use RyanChandler\LaravelCloudflareTurnstile\Rules\Turnstile as TurnstileRule;
+use RyanChandler\LaravelCloudflareTurnstile\Facades\Turnstile;
 
 class AuthController extends Controller
 {
     public function showLogin(Request $request)
     {
         $throttleKey = 'login-lock|' . $request->ip();
-        $isLocked = RateLimiter::tooManyAttempts($throttleKey, 3);
-        $seconds = $isLocked ? RateLimiter::availableIn($throttleKey) : 0;
-
-        $timeout = (bool) $request->query('timeout');
-
-        // bikin captcha baru tiap buka halaman login
-        $this->generateCaptcha($request);
+        $isLocked    = RateLimiter::tooManyAttempts($throttleKey, 3);
+        $seconds     = $isLocked ? RateLimiter::availableIn($throttleKey) : 0;
+        $timeout     = (bool) $request->query('timeout');
 
         return view('auth.login', compact('isLocked', 'seconds', 'timeout'));
     }
 
-    private function generateCaptcha(Request $request): void
-    {
-        $a = random_int(1, 9);
-        $b = random_int(1, 9);
-
-        $request->session()->put('captcha_question', "{$a} + {$b}");
-        $request->session()->put('captcha_answer', $a + $b);
-    }
-
     public function login(Request $request)
     {
-        $request->validate([
-            'username'               => ['required','string','max:60'],
-            'password'               => ['required','string','min:8'],
-            'captcha'                => ['required','numeric'],
-            'cf-turnstile-response'  => ['nullable','string'],
-        ], [
-            'captcha.required' => 'Captcha wajib diisi.',
-            'captcha.numeric'  => 'Captcha harus angka.',
-        ]);
-
-        // Verifikasi Cloudflare Turnstile — dilewati otomatis di env local/testing
-        // agar developer tidak perlu mengisi TURNSTILE_SITE_KEY saat development.
-        if (! $this->verifyTurnstileToken($request)) {
-            return back()
-                ->with('failed', 'Verifikasi keamanan (Turnstile) gagal. Silakan coba lagi.')
-                ->withInput($request->only('username'));
+        // Di environment local/testing, Turnstile::fake() membuat verifikasi
+        // selalu lolos tanpa butuh koneksi ke server Cloudflare.
+        // Di production/staging, verifikasi dikirim ke API Cloudflare via Rule package.
+        if (app()->environment(['local', 'testing'])) {
+            Turnstile::fake();
         }
 
-        $ipKey = 'login-lock|' . $request->ip();
+        $request->validate([
+            'username'              => ['required', 'string', 'max:60'],
+            'password'              => ['required', 'string', 'min:8'],
+            'cf-turnstile-response' => ['required', new TurnstileRule()],
+        ], [
+            'cf-turnstile-response.required' => 'Verifikasi keamanan (Turnstile) wajib diselesaikan.',
+        ]);
+
+        $ipKey   = 'login-lock|' . $request->ip();
         $userKey = Str::lower($request->username) . '|' . $request->ip();
 
         if (RateLimiter::tooManyAttempts($ipKey, 3) || RateLimiter::tooManyAttempts($userKey, 3)) {
@@ -66,21 +51,6 @@ class AuthController extends Controller
                 ->withInput($request->only('username'));
         }
 
-        // cek captcha dari session
-        $answer = (int) $request->session()->get('captcha_answer', -1);
-        if ((int)$request->captcha !== $answer) {
-            RateLimiter::hit($ipKey, 300);
-            RateLimiter::hit($userKey, 300);
-            
-            // refresh captcha biar nggak bisa ditebak ulang
-            $this->generateCaptcha($request);
-
-            return back()
-                ->with('failed', 'Captcha salah, coba lagi.')
-                ->withInput($request->only('username'));
-        }
-
-        // captcha benar -> lanjut login
         if (Auth::attempt(
             ['username' => $request->username, 'password' => $request->password],
             $request->boolean('remember')
@@ -97,12 +67,9 @@ class AuthController extends Controller
             };
         }
 
-        // kalau password salah, hit limiter
+        // Kredensial salah — hit rate limiter
         RateLimiter::hit($ipKey, 300);
         RateLimiter::hit($userKey, 300);
-
-        // kalau password salah, generate captcha baru juga biar aman
-        $this->generateCaptcha($request);
 
         return back()
             ->with('failed', 'Username atau password salah.')
@@ -117,41 +84,5 @@ class AuthController extends Controller
 
         return redirect()->route('login.form');
     }
-
-    /**
-     * Verifikasi token Cloudflare Turnstile.
-     *
-     * Mengembalikan true (bypass) jika:
-     *   - App berjalan di environment 'local' atau 'testing', ATAU
-     *   - TURNSTILE_SECRET_KEY belum dikonfigurasi.
-     *
-     * Di environment lain (production, staging), melakukan HTTP request ke
-     * API Cloudflare dan mengembalikan hasil verifikasi sesungguhnya.
-     */
-    private function verifyTurnstileToken(Request $request): bool
-    {
-        $secretKey = config('services.turnstile.secret_key');
-
-        // Bypass otomatis di local & testing — tidak memblokir workflow developer
-        if (app()->environment(['local', 'testing']) || blank($secretKey)) {
-            return true;
-        }
-
-        $token = $request->input('cf-turnstile-response', '');
-
-        if (blank($token)) {
-            return false;
-        }
-
-        $response = Http::asForm()->post(
-            'https://challenges.cloudflare.com/turnstile/v0/siteverify',
-            [
-                'secret'   => $secretKey,
-                'response' => $token,
-                'remoteip' => $request->ip(),
-            ]
-        );
-
-        return (bool) ($response->json('success') ?? false);
-    }
 }
+

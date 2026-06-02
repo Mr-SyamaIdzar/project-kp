@@ -36,8 +36,12 @@ return [
     ],
 
     'turnstile' => [
-        'site_key'   => env('TURNSTILE_SITE_KEY'),
-        'secret_key' => env('TURNSTILE_SECRET_KEY'),
+        // Nama key 'key' dan 'secret' WAJIB persis seperti ini —
+        // dibaca oleh package ryangjchandler/laravel-cloudflare-turnstile via:
+        //   config('services.turnstile.key')    → untuk widget site key
+        //   config('services.turnstile.secret') → untuk server-side verification
+        'key'    => env('TURNSTILE_SITE_KEY'),
+        'secret' => env('TURNSTILE_SECRET_KEY'),
     ],
 
 

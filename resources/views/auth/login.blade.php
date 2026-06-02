@@ -96,28 +96,16 @@
             </div>
           </div>
 
-          <div class="bg-black/20 p-4 rounded-xl border border-white/10 {{ $isLocked ? 'opacity-50' : '' }}">
-            <label class="block text-white/80 text-xs md:text-sm mb-2">
-              Captcha: <strong class="text-white">{{ session('captcha_question') }}</strong>
-            </label>
-            <input type="text"
-                   name="captcha"
-                   id="captcha-field"
-                   inputmode="numeric"
-                   pattern="[0-9]*"
-                   class="w-full bg-white/10 text-white placeholder-white/50 border {{ $errors->has('captcha') ? 'border-red-400 focus:ring-red-400' : 'border-white/20 focus:ring-purple-400' }} rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:border-transparent transition-all {{ $isLocked ? 'cursor-not-allowed' : '' }}"
-                   placeholder="Jawaban captcha..."
-                   required
-                   {{ $isLocked ? 'disabled' : '' }}>
-
-            @error('captcha')
-              <div class="text-red-300 text-[10px] md:text-xs mt-1">{{ $message }}</div>
-            @enderror
-
-            <p class="text-white/60 text-[10px] md:text-xs mt-2 mb-0">
-              Isi hasil penjumlahan di atas.
-            </p>
+          {{-- Widget Cloudflare Turnstile — menggantikan captcha matematika. --}}
+          {{-- Di env local/testing, verifikasi dilewati secara otomatis di backend. --}}
+          <div class="turnstile-wrap {{ $isLocked ? 'opacity-50 pointer-events-none' : '' }}">
+            <x-turnstile />
           </div>
+
+          @error('cf-turnstile-response')
+            <div class="text-red-300 text-[10px] md:text-xs -mt-2 mb-1 text-center">{{ $message }}</div>
+          @enderror
+
 
           <button type="submit" class="auth-btn-primary {{ $isLocked ? 'opacity-50 cursor-not-allowed' : '' }}" {{ $isLocked ? 'disabled' : '' }}>
             {{ $isLocked ? 'Silakan Tunggu...' : 'Sign In' }}
