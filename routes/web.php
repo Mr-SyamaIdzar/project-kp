@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\DashboardController as AdminDashboard;
 use App\Http\Controllers\OPD\DashboardController as OpdDashboard;
 use App\Http\Controllers\BPS\DashboardController as BpsDashboard;
 
+use App\Http\Controllers\Admin\DeadlineController;
 use App\Http\Controllers\Admin\LembarKerjaEvaluasiController as AdminLke;
 use App\Http\Controllers\Admin\MasterMenuController;
 use App\Http\Controllers\Admin\PenilaianAkhirController;
@@ -35,6 +36,11 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->group(function () {
     
     Route::resource('domains', \App\Http\Controllers\Admin\DomainController::class);
     Route::resource('kriterias', \App\Http\Controllers\Admin\KriteriaController::class);
+
+    // Manajemen deadline submit per tahun.
+    // Hanya index (list), update (simpan), destroy (hapus) — tidak ada create/store/show/edit form terpisah.
+    Route::resource('deadlines', DeadlineController::class)
+        ->only(['index', 'update', 'destroy']);
 
     Route::get('/lke', [AdminLke::class, 'index'])->name('lke.index');
     Route::get('/lke/export', [AdminLke::class, 'exportExcel'])->name('lke.export');
