@@ -73,8 +73,13 @@ class UserController extends Controller
             'username' => ['required','string','max:60','unique:users,username,'.$user->id],
             'nama'     => ['required','string','max:60'],
             'role'     => ['required','in:admin,opd,bps'],
-            // password opsional saat edit
-            'password' => ['nullable','string','min:8','confirmed'],
+            // Password opsional saat edit — jika diisi harus memenuhi standar kompleksitas
+            // yang sama dengan saat membuat akun baru (store).
+            'password' => [
+                'nullable',
+                'confirmed',
+                Password::min(8)->mixedCase()->numbers()->symbols(),
+            ],
         ]);
 
         $user->username = $validated['username'];

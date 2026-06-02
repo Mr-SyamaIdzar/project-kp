@@ -218,16 +218,21 @@ class RiwayatLkeController extends Controller
         $userId = (int) (Auth::id() ?? 0);
 
         $validated = $request->validate([
-            'tahun_id' => ['required', 'integer', 'exists:tahun,id'],
-            'nama_kegiatan' => ['required', 'string', 'max:250'],
+            'tahun_id'          => ['required', 'integer', 'exists:tahun,id'],
+            'nama_kegiatan'     => ['required', 'string', 'max:250'],
             'nomor_rekomendasi' => ['required', 'string', 'max:255'],
-            'domain_id' => ['required', 'integer', 'exists:domains,id'],
-            'penjelasan' => ['required', 'string', 'min:10'],
-            'files' => ['nullable', 'array'],
-            'files.*' => ['file', 'max:10240'],
+            'domain_id'         => ['required', 'integer', 'exists:domains,id'],
+            'penjelasan'        => ['required', 'string', 'min:10'],
+            'files'             => ['nullable', 'array'],
+            'files.*'           => [
+                'file',
+                'max:10240',
+                'mimes:pdf,jpg,jpeg,png,webp,doc,docx,xls,xlsx',
+            ],
         ], [
             'penjelasan.min' => 'Penjelasan harus diisi minimal 10 karakter.',
-            'files.*.max' => 'Ukuran maksimal setiap file adalah 10MB.',
+            'files.*.max'    => 'Ukuran maksimal setiap file adalah 10MB.',
+            'files.*.mimes'  => 'Tipe file tidak diizinkan. Format yang diterima: PDF, JPG, PNG, WEBP, DOC, DOCX, XLS, XLSX.',
         ]);
 
         $domainId = (int) $validated['domain_id'];

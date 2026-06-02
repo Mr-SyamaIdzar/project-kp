@@ -61,23 +61,36 @@ Route::middleware(['auth','role:admin'])->prefix('admin')->group(function () {
 
 Route::middleware(['auth','role:opd'])->prefix('opd')->name('opd.')->group(function () {
     Route::get('/dashboard', [OpdDashboard::class, 'index'])->name('dashboard');
-    Route::get('/dashboard/stats', [OpdDashboard::class, 'stats'])->name('dashboard.stats');
+
+    // Dashboard stats — throttle sedang untuk AJAX polling
+    Route::middleware('throttle:60,1')->group(function () {
+        Route::get('/dashboard/stats', [OpdDashboard::class, 'stats'])->name('dashboard.stats');
+    });
 
     Route::get('lke/create', [\App\Http\Controllers\OPD\LembarKerjaEvaluasiController::class, 'create'])->name('lke.create');
 
-    // AJAX endpoints — wrapped in ReadOnlySession to prevent MySQL session row lock
-    // which would serialize all parallel requests even when using Promise.all()
-    Route::middleware(\App\Http\Middleware\ReadOnlySession::class)->group(function () {
+    // AJAX endpoints — ReadOnlySession mencegah MySQL session row lock saat request paralel.
+    // throttle:60,1 → autosave & finalize (ringan, sering dipanggil)
+    Route::middleware([\App\Http\Middleware\ReadOnlySession::class, 'throttle:60,1'])->group(function () {
         Route::post('lke/autosave', [\App\Http\Controllers\OPD\LembarKerjaEvaluasiController::class, 'autosave'])->name('lke.autosave');
-        Route::post('lke/upload', [\App\Http\Controllers\OPD\LembarKerjaEvaluasiController::class, 'uploadBukti'])->name('lke.upload');
         Route::post('lke/finalize', [\App\Http\Controllers\OPD\LembarKerjaEvaluasiController::class, 'finalize'])->name('lke.finalize');
         Route::get('lke/files/{lke}', [\App\Http\Controllers\OPD\LembarKerjaEvaluasiController::class, 'files'])->name('lke.files');
         Route::post('lke/finalize-all', [\App\Http\Controllers\OPD\LembarKerjaEvaluasiController::class, 'finalizeAll'])->name('lke.finalizeAll');
     });
+
+    // Upload bukti dukung — throttle ketat karena berat (I/O disk)
+    Route::middleware([\App\Http\Middleware\ReadOnlySession::class, 'throttle:30,1'])->group(function () {
+        Route::post('lke/upload', [\App\Http\Controllers\OPD\LembarKerjaEvaluasiController::class, 'uploadBukti'])->name('lke.upload');
+    });
+
     Route::delete('lke/file/{buktiDukung}', [\App\Http\Controllers\OPD\LembarKerjaEvaluasiController::class, 'deleteFile'])->name('lke.file.delete');
     Route::get('lke/riwayat', [\App\Http\Controllers\OPD\RiwayatLkeController::class, 'index'])->name('lke.riwayat.index');
     Route::get('lke/riwayat/show', [\App\Http\Controllers\OPD\RiwayatLkeController::class, 'show'])->name('lke.riwayat.show');
-    Route::post('lke/riwayat/revisi', [\App\Http\Controllers\OPD\RiwayatLkeController::class, 'storeRevisi'])->name('lke.riwayat.revisi.store');
+
+    // Upload revisi — throttle ketat karena ada file upload
+    Route::middleware('throttle:30,1')->group(function () {
+        Route::post('lke/riwayat/revisi', [\App\Http\Controllers\OPD\RiwayatLkeController::class, 'storeRevisi'])->name('lke.riwayat.revisi.store');
+    });
 
     // Profile routes
     Route::get('/profile', [\App\Http\Controllers\OPD\ProfileController::class, 'edit'])->name('profile.edit');
